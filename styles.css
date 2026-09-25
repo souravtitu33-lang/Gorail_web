@@ -73,6 +73,11 @@ html[data-theme="dark"] .tatkal-item{background:#2a230f;color:#f2c464}
 .theme-toggle{background:#edf1f5}
 html[data-theme="dark"] .theme-toggle{background:#232d39}
 
+#trainMapEl{width:100%;height:100%;background:#e9edf2}
+#trainMapEl .leaflet-container{background:#e9edf2;border-radius:0 0 var(--radius) var(--radius)}
+html[data-theme="dark"] #trainMapEl .leaflet-tile{filter:invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9)}
+#mapAcList:empty{display:none}
+
 @media print{
   .topbar,.sidebar,.mobile-nav,.modal-backdrop .close,#toastRoot{display:none!important}
   .modal-backdrop{position:static;background:none;padding:0}

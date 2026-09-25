@@ -58,3 +58,12 @@ Get a free-tier key at rapidapi.com by searching "irctc1". Third-party API paths
 - Native station-name autocomplete on Train Enquiry
 - Print / Save-as-PDF button on the ticket confirmation
 - `api.js` is a self-contained live-data module — swap in a different provider by editing the endpoint paths in one place
+
+## 🗺️ Live Map — real routes, all real Indian trains (new)
+This is not a hardcoded shortlist. `railway-data.js` loads the full, real Indian Railways dataset published by DataMeet (CC0/public domain, gathered from Indian Railways open data): every station in the country and every train's actual route as a real GeoJSON path. Click **⚙️ Settings → "Load all India trains & stations"** once (a ~16MB one-time download, cached in the browser afterwards) and the Live Map page can search and plot **any of the ~13,000 real trains that run in India**, drawing their true route.
+
+Two honest notes on "exact location":
+- **No public GPS feed for Indian trains exists.** With a RapidAPI key connected, the map shows the train's last officially reported station (the same granularity real "Where is my train"-style apps use).
+- Without a live key, the marker shows an **estimated position**, calculated by walking the train's real route in proportion to elapsed time since its real scheduled departure — clearly labelled as an estimate, never presented as GPS truth.
+
+The map itself uses **Google Maps** if you add a Google Maps JavaScript API key in Settings, and falls back automatically to free **OpenStreetMap/Leaflet** tiles (no key, no billing) if you don't — the feature always works either way.

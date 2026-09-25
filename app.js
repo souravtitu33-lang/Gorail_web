@@ -21,6 +21,7 @@ const seed={
 let state=JSON.parse(localStorage.getItem(KEY)||"null")||seed;
 let session=JSON.parse(localStorage.getItem("gorail_session")||"null");
 let page="dashboard", modal=null, searchResults=[];
+loadCachedIndex();
 function save(){localStorage.setItem(KEY,JSON.stringify(state));localStorage.setItem("gorail_session",JSON.stringify(session))}
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
 function icon(x){return `<span>${x}</span>`}
@@ -28,19 +29,42 @@ function toast(msg,type="info"){let r=$("#toastRoot");if(!r){r=document.createEl
  let t=document.createElement("div");t.className="toast "+(type==="success"?"success":type==="warn"?"warn":"");t.textContent=msg;r.appendChild(t);setTimeout(()=>t.remove(),3800)}
 function toggleTheme(){let cur=document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",cur);localStorage.setItem("gorail_theme",cur);render()}
 function liveBadge(){let on=hasLiveData();return `<span class="live-badge ${on?"":"off"}" title="${on?"Connected to live Indian Railways data (RapidAPI)":"Running on demo data — add a RapidAPI key in Settings for real live data"}"><span class="dot"></span>${on?"LIVE DATA":"DEMO DATA"}</span>`}
-function settingsModal(){let k=getApiKey();modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>⚙️ Live Data Settings</h2><button class="close" onclick="closeModal()">×</button></div>
+function settingsModal(){let k=getApiKey(),gk=getGMapsKey();modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>⚙️ Live Data Settings</h2><button class="close" onclick="closeModal()">×</button></div>
  <p class="muted">GoRail can pull <b>real</b> Indian Railways data (live running status, PNR status, seat availability, fare) through the <b>irctc1</b> API on RapidAPI. Paste your own personal RapidAPI key below — it's stored only in this browser (localStorage), never sent anywhere but RapidAPI's servers.</p>
  <div class="field" style="margin-top:14px"><label>RapidAPI Key</label><input id="apiKeyInput" placeholder="paste your RapidAPI key" value="${esc(k)}"></div>
  <div class="actions" style="margin-top:14px"><button class="btn primary" onclick="saveApiKey()">Save Key</button>${k?`<button class="btn danger" onclick="clearApiKey()">Remove Key</button>`:""}</div>
  <div class="notice" style="margin-top:16px">Don't have a key? Get a free-tier key at <b>rapidapi.com</b> (search "irctc1"). Without a key, GoRail keeps working with clearly-labelled demo data — nothing breaks.<br><br>✅ Live station weather works with <b>no key at all</b> (free public Open-Meteo API), and already appears on Live Status and Station Info.</div>
+ <hr style="margin:20px 0;border:none;border-top:1px solid var(--line)">
+ <h3>🗺️ Google Maps</h3>
+ <p class="muted">Add a Google Maps JavaScript API key to use real Google Maps on the Live Map page. Without one, GoRail automatically uses free OpenStreetMap maps instead — the map always works either way.</p>
+ <div class="field" style="margin-top:10px"><label>Google Maps API Key</label><input id="gmapsKeyInput" placeholder="paste your Google Maps API key" value="${esc(gk)}"></div>
+ <div class="actions" style="margin-top:14px"><button class="btn primary" onclick="saveGMapsKey()">Save Key</button>${gk?`<button class="btn danger" onclick="clearGMapsKey()">Remove Key</button>`:""}</div>
+ <hr style="margin:20px 0;border:none;border-top:1px solid var(--line)">
+ <h3>🚆 All-India train &amp; station database</h3>
+ <p class="muted">Loads the real, complete Indian Railways dataset — every station and every train with its actual route — from the public DataMeet railways dataset (CC0). One-time download (~16MB), then cached in this browser.</p>
+ <div id="railDatasetStatus" class="notice" style="margin-top:10px">${railDatasetLoaded()?`✅ Loaded: ${ALL_TRAINS_INDEX.length.toLocaleString()} trains · ${ALL_STATIONS.length.toLocaleString()} stations`:"Not loaded yet."}</div>
+ <button class="btn primary" style="margin-top:10px" onclick="loadFullDataset()">${railDatasetLoaded()?"Reload dataset":"Load all India trains & stations"}</button>
  </div></div>`;drawModal()}
+function saveGMapsKey(){setGMapsKey($("#gmapsKeyInput").value);closeModal();toast(hasGoogleMaps()?"Google Maps connected.":"Key cleared — using OpenStreetMap.","success");render()}
+function clearGMapsKey(){setGMapsKey("");closeModal();toast("Google Maps disconnected — using OpenStreetMap.");render()}
+async function loadFullDataset(){
+ let box=$("#railDatasetStatus");if(box)box.textContent="Starting…";
+ try{
+  const res=await loadAllIndiaRailData(msg=>{if(box)box.textContent=msg});
+  if(box)box.innerHTML=`✅ Loaded: ${res.trains.toLocaleString()} trains · ${res.stations.toLocaleString()} stations`;
+  toast("All-India railway dataset loaded.","success");
+ }catch(e){
+  if(box)box.innerHTML=`<span style="color:#a31616">Failed to load (${esc(e.message)}). Check your internet connection and try again.</span>`;
+  toast("Dataset download failed — check your connection.","warn");
+ }
+}
 function saveApiKey(){setApiKey($("#apiKeyInput").value);closeModal();toast(hasLiveData()?"Live data connected.":"Key cleared — using demo data.","success");render()}
 function clearApiKey(){setApiKey("");closeModal();toast("Live data disconnected — using demo data.");render()}
 function navItems(admin=false){
  return admin?[
   ["dashboard","📊","Dashboard"],["manage-trains","🚆","Manage Trains"],["complaints","🛠️","Complaints"],["broadcast","📢","Broadcast Notice"]
  ]:[
-  ["dashboard","🏠","Home"],["search","🔎","Train Enquiry"],["bookings","🎫","My Tickets"],["pnr","🔢","PNR Status"],
+  ["dashboard","🏠","Home"],["search","🔎","Train Enquiry"],["map","🗺️","Live Map"],["bookings","🎫","My Tickets"],["pnr","🔢","PNR Status"],
   ["live","📍","Live Status"],["stations","🚉","Station Info"],["food","🍱","Order Food"],["complaints","📝","Complaints"],
   ["notifications","🔔","Notifications"],["profile","👤","Profile"]
  ]}
@@ -83,6 +107,7 @@ function renderPage(){
   case "bookings": return bookingsPage();
   case "pnr": return pnrPage();
   case "live": return livePage();
+  case "map": return mapPage();
   case "stations": return stationsPage();
   case "food": return foodPage();
   case "complaints": return complaintsPage();
@@ -166,6 +191,78 @@ function broadcastPage(){return pageTitle("Broadcast Notice","Send a notice to p
  +`<div class="card"><div class="field"><label>Notice</label><textarea id="broadcastText" placeholder="Enter railway notice..."></textarea></div><button class="btn primary" style="margin-top:12px" onclick="sendBroadcast()">Broadcast Notice</button></div>
  <div class="card" style="margin-top:18px"><h3>Previous notices</h3>${state.broadcasts.slice().reverse().map(b=>`<p><b>${b.date}</b> — ${esc(b.message)}</p>`).join("")||"<p class='muted'>No notices.</p>"}</div>`}
 
+function mapPage(){
+ const loaded=railDatasetLoaded();
+ return pageTitle("Live Map","Real route + train position on a map",`${liveBadge()} <span class="live-badge ${hasGoogleMaps()?"":"off"}">${hasGoogleMaps()?"GOOGLE MAPS":"OPENSTREETMAP"}</span>`)
+ +`<div class="card">
+  ${loaded?`<div class="notice">✅ Searching across all <b>${ALL_TRAINS_INDEX.length.toLocaleString()}</b> real Indian trains.</div>`:
+   `<div class="notice warn">All-India dataset not loaded yet — searching only the ${state.trains.length} demo trains. <button class="btn small" onclick="settingsModal()">Load all India trains (⚙️ Settings)</button></div>`}
+  <div class="field autocomplete" style="margin-top:14px"><label>Train number or name</label><input id="mapTrainQuery" placeholder="e.g. 12951 or Rajdhani" oninput="mapSuggest()" autocomplete="off"><div id="mapAcList"></div></div>
+  <div class="field" style="margin-top:12px"><label>Journey date (for schedule-based position, if not live)</label><input id="mapDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+  <button class="btn primary" style="margin-top:12px" onclick="trackTrainOnMap()">Track on Map</button>
+ </div>
+ <div id="mapResultInfo" style="margin-top:16px"></div>
+ <div class="card" style="margin-top:16px;padding:0;overflow:hidden"><div id="trainMapEl" style="height:440px"></div></div>`;
+}
+function mapSuggest(){
+ const q=$("#mapTrainQuery").value.trim();const box=$("#mapAcList");
+ if(!q){box.innerHTML="";return}
+ let results;
+ if(railDatasetLoaded()) results=searchAllTrains(q,10).map(t=>({label:`${t.number} · ${t.name} (${t.from} → ${t.to})`,number:t.number}));
+ else results=state.trains.filter(t=>t.number.includes(q)||t.name.toLowerCase().includes(q.toLowerCase())).map(t=>({label:`${t.number} · ${t.name}`,number:t.number}));
+ box.className="ac-list";
+ box.innerHTML=results.map(r=>`<div onclick="selectMapTrain('${r.number}','${esc(r.label).replace(/'/g,"\\'")}')">${esc(r.label)}</div>`).join("")||"";
+}
+function selectMapTrain(number,label){$("#mapTrainQuery").value=number;$("#mapAcList").innerHTML="";}
+async function trackTrainOnMap(){
+ const q=$("#mapTrainQuery").value.trim();const date=$("#mapDate").value;
+ const info=$("#mapResultInfo");
+ if(!q){toast("Enter a train number or name.");return}
+ let real=railDatasetLoaded()?ALL_TRAINS_INDEX.find(t=>t.number===q)||searchAllTrains(q,1)[0]:null;
+ let demo=state.trains.find(t=>t.number===q||t.id===q||t.name.toLowerCase().includes(q.toLowerCase()));
+ if(!real&&!demo){info.innerHTML=`<div class="notice warn">Train not found. ${railDatasetLoaded()?"Check the number/name.":"Load the all-India dataset in Settings to search every real train."}</div>`;return}
+ info.innerHTML=`<div class="card">Locating train…</div>`;
+
+ let route=null, fromName, toName, distance, durH, durM, dep, number, name, classes=[];
+ if(real){
+  number=real.number;name=real.name;fromName=real.from_name;toName=real.to_name;
+  distance=real.distance;durH=real.duration_h;durM=real.duration_m;dep=real.departure;classes=real.classes;
+  route=getTrainRoute(real.number);
+  if(!route && !ALL_TRAINS_GEOJSON){
+   info.innerHTML=`<div class="card">Fetching real route data (one-time this session)…</div>`;
+   try{ await loadAllIndiaRailData(()=>{}); route=getTrainRoute(real.number); }catch(e){ /* handled by the route null-check below */ }
+  }
+ } else {
+  number=demo.number;name=demo.name;fromName=demo.from;toName=demo.to;dep=demo.dep;classes=demo.classes;
+  const fS=findStation(demo.from), tS=findStation(demo.to);
+  route = fS&&tS ? [[fS.lon,fS.lat],[tS.lon,tS.lat]] : null;
+  const durMatch=(demo.duration||"").match(/(\d+)h\s*(\d+)?/); durH=durMatch?+durMatch[1]:0; durM=durMatch&&durMatch[2]?+durMatch[2]:0;
+ }
+ if(!route){info.innerHTML=`<div class="notice warn">No route geometry available for this train yet. Load the all-India dataset in Settings for real routes.</div>`;return}
+
+ let posLabel="Estimated position (schedule-based, along the real route)";
+ let trainPoint=null;
+ if(hasLiveData()){
+  try{
+   const r=await GoRailAPI.liveStatus(number);const d=r?.data||r;
+   const stCode = d?.current_station_code || d?.current_station || d?.station_code || d?.last_station_code;
+   const stName = d?.current_station_name || d?.station_name;
+   const st = (stCode&&findRealStation(stCode)) || (stName&&findRealStation(stName));
+   if(st){ trainPoint={lat:st.lat,lon:st.lon}; posLabel="Live position — last reported station (via RapidAPI)"; }
+  }catch(e){ /* fall back to schedule estimate below */ }
+ }
+ if(!trainPoint){
+  const frac=scheduleFraction(dep,durH,durM,date);
+  trainPoint=pointAtFraction(route,frac);
+ }
+
+ const stops=[route[0],route[route.length-1]].map((c,i)=>({lat:c[1],lon:c[0],name:i===0?fromName:toName}));
+ renderTrainMap("trainMapEl",{routeCoords:route,trainPoint,stationStops:stops,trainLabel:`${number} · ${name}`});
+ info.innerHTML=`<div class="card"><div class="actions" style="justify-content:space-between"><h3 style="margin:0">${esc(number)} · ${esc(name)}</h3><span class="live-badge ${posLabel.startsWith("Live")?"":"off"}"><span class="dot"></span>${posLabel.startsWith("Live")?"LIVE POSITION":"ESTIMATED"}</span></div>
+ <p>${esc(fromName||"")} → ${esc(toName||"")}${distance?` · ${distance} km`:""}${durH!=null?` · ${durH}h ${durM||0}m`:""}</p>
+ ${classes?.length?`<div class="actions">${classes.map(c=>`<span class="pill">${c}</span>`).join("")}</div>`:""}
+ <p class="muted" style="margin-top:8px">${posLabel}</p></div>`;
+}
 function ticketMini(b){let t=state.trains.find(x=>x.id===b.trainId)||b.train;return `<div style="margin-top:12px"><b>${t.number} · ${esc(t.name)}</b><p class="muted">${t.from} → ${t.to}<br>PNR ${b.pnr}</p></div>`}
 function goto(p){page=p;searchResults=[];render();window.scrollTo({top:0,behavior:"smooth"});if(p==="stations")setTimeout(loadStationsWeather,10)}
 function login(){let email=$("#lemail").value.trim(),pass=$("#lpass").value;let u=state.users.find(x=>x.email===email&&x.password===pass);
