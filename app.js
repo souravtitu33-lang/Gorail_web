@@ -1,6 +1,6 @@
 const $ = (s,root=document)=>root.querySelector(s);
 const $$ = (s,root=document)=>[...root.querySelectorAll(s)];
-const KEY="gorail_web_state_v1";
+// Full Indian Railways open timetable is loaded on demand by railway-data.js.\n// This seed list is only used by the booking/admin demo flows until a real train is selected.\nconst KEY="gorail_web_state_v1";
 const seed={
   users:[{id:"u1",name:"Demo Passenger",email:"passenger@gorail.app",password:"123456",phone:"9876543210",role:"passenger"}],
   trains:[
