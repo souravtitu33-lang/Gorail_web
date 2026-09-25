@@ -18,7 +18,7 @@
    visits are instant.
    ============================================================ */
 
-// Primary source: prasenjit-27/Indian-Railway-Data (MIT) — 8,990+ stations, 5,208+ trains with ordered route schedules.
+// Primary source: prasenjit-27/Indian-Railway-Data (MIT) — 8,990+ stations, 5,208+ train records with ordered route schedules. This is an open-data snapshot, not a live official Indian Railways feed.
 // Fallback: DataMeet railways dataset (CC0) for resilience.
 const RAIL_STATIONS_URLS = [
   "https://raw.githubusercontent.com/prasenjit-27/Indian-Railway-Data/main/stations.json",
