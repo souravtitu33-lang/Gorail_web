@@ -18,8 +18,16 @@
    visits are instant.
    ============================================================ */
 
-const RAIL_STATIONS_URL = "https://github.com/datameet/railways/raw/refs/heads/master/stations.json";
-const RAIL_TRAINS_URL = "https://github.com/datameet/railways/raw/refs/heads/master/trains.json";
+// Primary source: prasenjit-27/Indian-Railway-Data (MIT) — 8,990+ stations, 5,208+ trains with ordered route schedules.
+// Fallback: DataMeet railways dataset (CC0) for resilience.
+const RAIL_STATIONS_URLS = [
+  "https://raw.githubusercontent.com/prasenjit-27/Indian-Railway-Data/main/stations.json",
+  "https://github.com/datameet/railways/raw/refs/heads/master/stations.json"
+];
+const RAIL_TRAINS_URLS = [
+  "https://raw.githubusercontent.com/prasenjit-27/Indian-Railway-Data/main/trains.json",
+  "https://github.com/datameet/railways/raw/refs/heads/master/trains.json"
+];
 const RAIL_SCHEDULES_URL = "https://github.com/datameet/railways/raw/refs/heads/master/schedules.json";
 const RAIL_CACHE_KEY = "gorail_all_india_index_v2";
 
@@ -52,35 +60,61 @@ function classListFromProps(p){
 // Loads the full real dataset. Reports progress via onProgress(stage, pct?).
 async function loadAllIndiaRailData(onProgress){
   onProgress?.("Downloading all Indian railway stations…");
-  const sRes = await fetch(RAIL_STATIONS_URL);
-  if(!sRes.ok) throw new Error("STATIONS_FETCH_FAILED_" + sRes.status);
-  const sJson = await sRes.json();
-  ALL_STATIONS = (sJson.features||[]).map(f=>({
-    code: f.properties.code, name: f.properties.name, state: f.properties.state,
-    zone: f.properties.zone, lon: f.geometry?.coordinates?.[0], lat: f.geometry?.coordinates?.[1]
-  })).filter(s=>s.code && s.lat && s.lon);
+  let sJson=null, sRes=null, stationSource=0;
+  for(const url of RAIL_STATIONS_URLS){
+    try{ const r=await fetch(url); if(r.ok){ sJson=await r.json(); sRes=r; break; } }catch(e){}
+    stationSource++;
+  }
+  if(!sJson) throw new Error("STATIONS_FETCH_FAILED");
+  const stationRows = Array.isArray(sJson) ? sJson : (sJson.features||[]);
+  ALL_STATIONS = stationRows.map(f=>{
+    const p=f.properties||f;
+    const c=f.geometry?.coordinates||p.coordinates||[];
+    return { code:p.code, name:p.name, state:p.state, zone:p.zone, address:p.address,
+      lon:c[0] ?? p.longitude, lat:c[1] ?? p.latitude };
+  }).filter(s=>s.code && s.lat!=null && s.lon!=null);
 
-  onProgress?.(`Downloading all ${13000}+ Indian trains (~14MB, one-time)…`);
-  const tRes = await fetch(RAIL_TRAINS_URL);
-  if(!tRes.ok) throw new Error("TRAINS_FETCH_FAILED_" + tRes.status);
-  const tJson = await tRes.json();
-  ALL_TRAINS_GEOJSON = tJson;
+  onProgress?.("Downloading the Indian Railways train master & route schedules…");
+  let tJson=null, trainSource=0;
+  for(const url of RAIL_TRAINS_URLS){
+    try{ const r=await fetch(url); if(r.ok){ tJson=await r.json(); break; } }catch(e){}
+    trainSource++;
+  }
+  if(!tJson) throw new Error("TRAINS_FETCH_FAILED");
 
   onProgress?.("Indexing trains…");
-  ALL_TRAINS_INDEX = (tJson.features||[]).map(f=>{
-    const p = f.properties;
-    return {
-      number: p.number, name: p.name, from: p.from_station_code, from_name: p.from_station_name,
-      to: p.to_station_code, to_name: p.to_station_name, zone: p.zone, distance: p.distance,
-      duration_h: p.duration_h, duration_m: p.duration_m, departure: p.departure, arrival: p.arrival,
-      classes: classListFromProps(p), type: p.type
-    };
-  }).filter(t=>t.number && t.name);
+  // New dataset: array of rich train objects with completeOrderedRoute.
+  if(Array.isArray(tJson)){
+    ALL_TRAINS_INDEX = tJson.map(t=>({
+      number:String(t.trainNumber||t.number||""), name:t.trainName||t.name||"", type:t.type||"",
+      from:t.source?.code||t.from_station_code||"", from_name:t.source?.name||t.from_station_name||"",
+      to:t.destination?.code||t.to_station_code||"", to_name:t.destination?.name||t.to_station_name||"",
+      zone:t.zone||"", distance:t.overallDistanceKm||t.distance||0,
+      duration_h:t.duration?.hours ?? t.duration_h ?? 0, duration_m:t.duration?.minutes ?? t.duration_m ?? 0,
+      departure:t.departure||t.source?.departureTime||"", arrival:t.arrival||t.destination?.arrivalTime||"",
+      classes:t.classes||["SL"], __route:t.completeOrderedRoute||[]
+    })).filter(t=>t.number&&t.name);
+    ALL_TRAINS_GEOJSON = null;
+  } else {
+    ALL_TRAINS_GEOJSON=tJson;
+    ALL_TRAINS_INDEX=(tJson.features||[]).map(f=>{const p=f.properties;return {number:p.number,name:p.name,from:p.from_station_code,from_name:p.from_station_name,to:p.to_station_code,to_name:p.to_station_name,zone:p.zone,distance:p.distance,duration_h:p.duration_h,duration_m:p.duration_m,departure:p.departure,arrival:p.arrival,classes:classListFromProps(p),type:p.type,__route:[]};}).filter(t=>t.number&&t.name);
+  }
 
   onProgress?.("Downloading complete train-stop schedules…");
   const schRes = await fetch(RAIL_SCHEDULES_URL);
   if(!schRes.ok) throw new Error("SCHEDULES_FETCH_FAILED_" + schRes.status);
-  const schedules = await schRes.json();
+  let schedules=[];
+  if(trainSource===0 && Array.isArray(tJson)){
+    for(const t of tJson){
+      const n=String(t.trainNumber||t.number||"").trim();
+      if(!n) continue;
+      const stops=(t.completeOrderedRoute||[]).map(s=>({day:s.journeyDay,station_code:s.stationCode,station_name:s.stationName,arrival:s.arrivalTime,departure:s.departureTime,id:s.sequence}));
+      if(stops.length) schedules.push(...stops.map(s=>({...s,train_number:n})));
+    }
+  } else {
+    const schRes = await fetch(RAIL_SCHEDULES_URL);
+    if(schRes.ok) schedules = await schRes.json();
+  }
   ALL_TRAIN_SCHEDULES = new Map();
   for(const stop of (Array.isArray(schedules) ? schedules : [])){
     const n = String(stop.train_number || "").trim();
@@ -116,9 +150,17 @@ function findRealStation(codeOrName){
 
 // Returns the real route geometry (array of [lon,lat]) for a train number, if loaded.
 function getTrainRoute(trainNumber){
+  const t=ALL_TRAINS_INDEX.find(x=>String(x.number)===String(trainNumber));
+  if(t?.__route?.length){
+    return t.__route.map(s=>{
+      const lat=s.latitude ?? s.coordinates?.latitude ?? s.lat;
+      const lon=s.longitude ?? s.coordinates?.longitude ?? s.lon;
+      return [lon,lat];
+    }).filter(c=>c[0]!=null&&c[1]!=null);
+  }
   if(!ALL_TRAINS_GEOJSON) return null;
-  const feat = ALL_TRAINS_GEOJSON.features.find(f=>f.properties.number===trainNumber);
-  return feat ? feat.geometry.coordinates : null;
+  const feat=ALL_TRAINS_GEOJSON.features.find(f=>String(f.properties.number)===String(trainNumber));
+  return feat?.geometry?.coordinates||null;
 }
 
 /* ---------- geometry helpers for "exact position" estimation ---------- */
