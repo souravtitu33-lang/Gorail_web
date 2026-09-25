@@ -29,7 +29,7 @@ const RAIL_TRAINS_URLS = [
   "https://github.com/datameet/railways/raw/refs/heads/master/trains.json"
 ];
 const RAIL_SCHEDULES_URL = "https://github.com/datameet/railways/raw/refs/heads/master/schedules.json";
-const RAIL_CACHE_KEY = "gorail_all_india_index_v2";
+const RAIL_CACHE_KEY = "gorail_all_india_index_v3";
 
 let ALL_STATIONS = [];      // [{code,name,state,zone,lat,lon}]
 let ALL_TRAINS_INDEX = [];  // [{number,name,from,from_name,to,to_name,zone,distance,duration_h,duration_m,classes:[..]}]
@@ -92,7 +92,7 @@ async function loadAllIndiaRailData(onProgress){
       zone:t.zone||"", distance:t.overallDistanceKm||t.distance||0,
       duration_h:t.duration?.hours ?? t.duration_h ?? 0, duration_m:t.duration?.minutes ?? t.duration_m ?? 0,
       departure:t.departure||t.source?.departureTime||"", arrival:t.arrival||t.destination?.arrivalTime||"",
-      classes:t.classes||["SL"], __route:t.completeOrderedRoute||[]
+      runningDays:t.runningDays||{}, classes:t.classes||[], __route:t.completeOrderedRoute||[]
     })).filter(t=>t.number&&t.name);
     ALL_TRAINS_GEOJSON = null;
   } else {
@@ -100,20 +100,31 @@ async function loadAllIndiaRailData(onProgress){
     ALL_TRAINS_INDEX=(tJson.features||[]).map(f=>{const p=f.properties;return {number:p.number,name:p.name,from:p.from_station_code,from_name:p.from_station_name,to:p.to_station_code,to_name:p.to_station_name,zone:p.zone,distance:p.distance,duration_h:p.duration_h,duration_m:p.duration_m,departure:p.departure,arrival:p.arrival,classes:classListFromProps(p),type:p.type,__route:[]};}).filter(t=>t.number&&t.name);
   }
 
-  onProgress?.("Downloading complete train-stop schedules…");
-  const schRes = await fetch(RAIL_SCHEDULES_URL);
-  if(!schRes.ok) throw new Error("SCHEDULES_FETCH_FAILED_" + schRes.status);
+  onProgress?.("Indexing complete train-stop schedules…");
   let schedules=[];
+  // The primary dataset embeds the complete ordered route inside every train.
+  // This gives GoRail route details without another 96MB download.
   if(trainSource===0 && Array.isArray(tJson)){
     for(const t of tJson){
       const n=String(t.trainNumber||t.number||"").trim();
       if(!n) continue;
-      const stops=(t.completeOrderedRoute||[]).map(s=>({day:s.journeyDay,station_code:s.stationCode,station_name:s.stationName,arrival:s.arrivalTime,departure:s.departureTime,id:s.sequence}));
+      const stops=(t.completeOrderedRoute||[]).map(s=>({
+        day:s.journeyDay,
+        station_code:s.stationCode,
+        station_name:s.stationName,
+        arrival:s.arrivalTime,
+        departure:s.departureTime,
+        id:s.sequence,
+        distance:s.distance
+      }));
       if(stops.length) schedules.push(...stops.map(s=>({...s,train_number:n})));
     }
   } else {
-    const schRes = await fetch(RAIL_SCHEDULES_URL);
-    if(schRes.ok) schedules = await schRes.json();
+    // DataMeet fallback stores schedules separately.
+    try{
+      const schRes = await fetch(RAIL_SCHEDULES_URL);
+      if(schRes.ok) schedules = await schRes.json();
+    }catch(e){}
   }
   ALL_TRAIN_SCHEDULES = new Map();
   for(const stop of (Array.isArray(schedules) ? schedules : [])){
@@ -152,11 +163,14 @@ function findRealStation(codeOrName){
 function getTrainRoute(trainNumber){
   const t=ALL_TRAINS_INDEX.find(x=>String(x.number)===String(trainNumber));
   if(t?.__route?.length){
+    const byCode=new Map(ALL_STATIONS.map(s=>[String(s.code).toUpperCase(),s]));
     return t.__route.map(s=>{
-      const lat=s.latitude ?? s.coordinates?.latitude ?? s.lat;
-      const lon=s.longitude ?? s.coordinates?.longitude ?? s.lon;
-      return [lon,lat];
-    }).filter(c=>c[0]!=null&&c[1]!=null);
+      const directLat=s.latitude ?? s.coordinates?.latitude ?? s.lat;
+      const directLon=s.longitude ?? s.coordinates?.longitude ?? s.lon;
+      if(directLat!=null && directLon!=null) return [directLon,directLat];
+      const st=byCode.get(String(s.stationCode||s.code||"").toUpperCase());
+      return st && st.lat!=null && st.lon!=null ? [Number(st.lon),Number(st.lat)] : null;
+    }).filter(Boolean);
   }
   if(!ALL_TRAINS_GEOJSON) return null;
   const feat=ALL_TRAINS_GEOJSON.features.find(f=>String(f.properties.number)===String(trainNumber));
