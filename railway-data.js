@@ -28,7 +28,7 @@ let ALL_TRAINS_INDEX = [];  // [{number,name,from,from_name,to,to_name,zone,dist
 let ALL_TRAINS_GEOJSON = null; // full FeatureCollection kept in-memory only (for route polylines)
 let ALL_TRAIN_SCHEDULES = new Map(); // train number -> ordered station stops
 
-function railDatasetLoaded(){ return ALL_TRAINS_INDEX.length > 0; }
+function railDatasetLoaded(){ return ALL_TRAINS_INDEX.length > 0 && ALL_TRAIN_SCHEDULES.size > 0; }
 function railStationsLoaded(){ return ALL_STATIONS.length > 0; }
 
 function loadCachedIndex(){
