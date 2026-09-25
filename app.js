@@ -158,7 +158,7 @@ function showRealTrainRoute(number){
  const stops=getTrainRouteStops(number);
  const route=getTrainRoute(number);
  const stopRows=stops.length?stops.map((s,i)=>`<div style="display:grid;grid-template-columns:38px 1fr auto;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)"><b>${i+1}</b><div><b>${esc(s.station_name||s.station_code||"")}</b><div class="muted">${esc(s.station_code||"")}</div></div><div style="text-align:right"><div>${esc(s.arrival||"—")} → ${esc(s.departure||"—")}</div><div class="muted">Day ${esc(s.day||"—")}</div></div></div>`).join(""):`<div class="empty">No schedule-stop records are available for this train in the timetable dataset.</div>`;
- modal=`<div class="modal-backdrop"><div class="modal" style="max-width:900px"><div class="modal-head"><h2>🚆 ${esc(t.number)} · ${esc(t.name)}</h2><button class="close" onclick="closeModal()">×</button></div><div class="notice"><b>${esc(t.from_name)}</b> → <b>${esc(t.to_name)}</b> · ${t.distance||"—"} km · ${t.duration_h||0}h ${t.duration_m||0}m · ${stops.length} scheduled stops</div><div class="actions" style="margin:12px 0">${(t.classes||[]).map(x=>`<span class="pill">${esc(x)}</span>`).join("")}<span class="pill">${esc(t.zone||"")}</span><span class="pill">${esc(t.type||"")}</span></div><div style="max-height:55vh;overflow:auto">${stopRows}</div><p class="muted" style="margin-top:12px">The timetable stop list comes from the open DataMeet railways schedules dataset. The line geometry is used for map routing where available.${route?` Route geometry contains ${route.length} coordinate points.`:""}</p></div></div>`;
+ modal=`<div class="modal-backdrop"><div class="modal" style="max-width:900px"><div class="modal-head"><h2>🚆 ${esc(t.number)} · ${esc(t.name)}</h2><button class="close" onclick="closeModal()">×</button></div><div class="notice"><b>${esc(t.from_name)}</b> → <b>${esc(t.to_name)}</b> · ${t.distance||"—"} km · ${t.duration_h||0}h ${t.duration_m||0}m · ${stops.length} scheduled stops</div><div class="actions" style="margin:12px 0">${(t.classes||[]).map(x=>`<span class="pill">${esc(x)}</span>`).join("")}<span class="pill">${esc(t.zone||"")}</span><span class="pill">${esc(t.type||"")}</span></div><div class="notice" style="margin-bottom:12px"><b>Runs:</b> ${Object.entries(t.runningDays||{}).filter(([,v])=>v).map(([d])=>d).join(", ")||"Schedule days not available"} · <b>Total distance:</b> ${esc(t.distance||"—")} km</div><div style="max-height:55vh;overflow:auto">${stopRows}</div><p class="muted" style="margin-top:12px">The timetable stop list comes from the open Indian-Railway-Data timetable snapshot. The line geometry is used for map routing where available.${route?` Route geometry contains ${route.length} coordinate points.`:""}</p></div></div>`;
  drawModal();
 }
 function trainResult(t){
@@ -394,8 +394,8 @@ async function searchTrains(){
   try{ await loadAllIndiaRailData(msg=>toast(msg)); }catch(e){ toast("Could not load Indian Railways dataset: "+(e.message||e),"warn"); return; }
  }
  const real=searchRealTrains(f,to,cl,100).map(t=>({...t,__real:true}));
- searchResults=(f||to||cl)?real:[];
- if(!f&&!to&&!cl) toast("Enter at least a From, To or Class filter.");
+ searchResults=(f||to||cl)?real:ALL_TRAINS_INDEX.slice(0,100).map(t=>({...t,__real:true}));
+ if(!f&&!to&&!cl) toast("Showing the first 100 trains from the complete Indian Railways database.");
  if((f||to||cl)&&!real.length) toast("No timetable match found for the selected route.","warn");
  render();
 }
