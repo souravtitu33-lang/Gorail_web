@@ -144,15 +144,19 @@ function adminDashboard(){return pageTitle("Railway Operations & Management Dash
  ].map(x=>`<div class="card"><div style="font-size:26px">${x[0]}</div><div class="muted">${x[1]}</div><div class="stat">${x[2]}</div></div>`).join("")}</div>
  <div class="card" style="margin-top:18px"><h3>Quick Admin Operations</h3><div class="actions" style="margin-top:14px"><button class="btn primary" onclick="goto('manage-trains')">Manage Trains</button><button class="btn" onclick="goto('complaints')">Complaints</button><button class="btn" onclick="goto('broadcast')">Broadcast Notice</button></div></div>`}
 function searchPage(){
- return pageTitle("Train Enquiry","Search the complete Indian train timetable by actual route stops",`<button class="btn" onclick="resetSearch()">Reset</button>`)
- +`<div class="card"><datalist id="stationList">${(ALL_STATIONS.length?ALL_STATIONS:STATIONS_DB).map(s=>`<option value="${esc(s.name)}">${esc(s.code||"")}</option>`).join("")}</datalist>
- <div class="form-grid"><div class="field"><label>From station / code</label><input id="sfrom" list="stationList" placeholder="e.g. NDLS or New Delhi"></div>
- <div class="field"><label>To station / code</label><input id="sto" list="stationList" placeholder="e.g. HWH or Howrah"></div>
- <div class="field"><label>Date</label><input id="sdate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
- <div class="field"><label>Class</label><select id="sclass"><option value="">Any class</option><option>1A</option><option>2A</option><option>3A</option><option>SL</option><option>CC</option><option>2S</option></select></div></div>
- <div class="actions" style="margin-top:15px"><button class="btn primary" onclick="searchTrains()">Search All Indian Trains</button><button class="btn" onclick="loadFullDataset()">Load / Refresh Indian Railways Data</button></div>
- <p class="muted" style="margin-top:10px">${railDatasetLoaded()?`Loaded ${ALL_TRAINS_INDEX.length.toLocaleString()} trains and ${ALL_STATIONS.length.toLocaleString()} stations. Route stops are read from the timetable schedules.`:"The complete open timetable is loaded on demand. The first load downloads the train and station datasets; each train already contains its complete ordered route and timetable stops."</p></div>
- <div id="results" style="margin-top:18px">${searchResults.length?searchResults.map(trainResult).join(""):`<div class="empty">Load the database, then enter stations to find trains that actually stop at both locations.</div>`}</div>`;
+  const loaded = railDatasetLoaded();
+  const stationOptions = (ALL_STATIONS.length ? ALL_STATIONS : STATIONS_DB).map(s => '<option value="' + esc(s.name) + '">' + esc(s.code || "") + '</option>').join("");
+  const datasetText = loaded ? "Loaded " + ALL_TRAINS_INDEX.length.toLocaleString() + " trains and " + ALL_STATIONS.length.toLocaleString() + " stations. Route stops are read from the timetable schedules." : "The complete open timetable is loaded on demand.";
+  const resultsHtml = searchResults.length ? searchResults.map(trainResult).join("") : '<div class="empty">Load the database, then enter stations to find trains.</div>';
+  return pageTitle("Train Enquiry","Search the complete Indian train timetable by actual route stops", '<button class="btn" onclick="resetSearch()">Reset</button>') +
+    '<div class="card"><datalist id="stationList">' + stationOptions + '</datalist>' +
+    '<div class="form-grid"><div class="field"><label>From station / code</label><input id="sfrom" list="stationList" placeholder="e.g. NDLS or New Delhi"></div>' +
+    '<div class="field"><label>To station / code</label><input id="sto" list="stationList" placeholder="e.g. HWH or Howrah"></div>' +
+    '<div class="field"><label>Date</label><input id="sdate" type="date" value="' + new Date().toISOString().slice(0,10) + '"></div>' +
+    '<div class="field"><label>Class</label><select id="sclass"><option value="">Any class</option><option>1A</option><option>2A</option><option>3A</option><option>SL</option><option>CC</option><option>2S</option></select></div></div>' +
+    '<div class="actions" style="margin-top:15px"><button class="btn primary" onclick="searchTrains()">Search All Indian Trains</button><button class="btn" onclick="loadFullDataset()">Load / Refresh Indian Railways Data</button></div>' +
+    '<p class="muted" style="margin-top:10px">' + esc(datasetText) + '</p></div>' +
+    '<div id="results" style="margin-top:18px">' + resultsHtml + '</div>';
 }
 function showRealTrainRoute(number){
  const t=ALL_TRAINS_INDEX.find(x=>String(x.number)===String(number));
