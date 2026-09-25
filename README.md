@@ -82,3 +82,9 @@ The repository also links to the official Indian Railways Passenger Reservation 
 Official references:
 - Indian Railways Train Schedule: https://www.indianrail.gov.in/enquiry/SCHEDULE/TrainSchedule.html?locale=e
 - Government Open Data: https://www.data.gov.in/catalog/indian-railways-train-time-table
+
+
+## Updated train-data source
+GoRail now uses the **Indian-Railway-Data** public dataset as its primary train/station source, with a DataMeet fallback. The primary dataset documents **5,208+ trains** and **8,990+ stations**, including ordered route schedules, halt timings, journey days and running days, and is published under the MIT License. This is timetable/reference data, not a live GPS feed; live operational status remains separate.
+
+Source: https://github.com/prasenjit-27/Indian-Railway-Data
