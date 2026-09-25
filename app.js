@@ -200,8 +200,8 @@ function trainResult(t){
    <div><div class="route-line">● ───── 🚆 ───── ●</div><div style="text-align:center;margin-top:8px"><span class="pill">${t.duration_h||0}h ${t.duration_m||0}m</span> <span class="pill ok">TIMETABLE</span></div></div>
    <div style="text-align:right"><div class="station-time">${esc(t.arrival||"—")}</div><div class="station-name">${esc(t.to_name||t.to||"")}</div></div>
    <div style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:13px">
-    <div><b>${esc(t.number)}</b> · ${esc(t.name)} · ${t.distance?esc(t.distance)+" km":""} · ${stops.length.toLocaleString()} scheduled stops</div>
-    <button class="btn primary small" onclick="showRealTrainRoute('${esc(t.number)}')">View Full Route</button>
+    <div><b>${esc(t.number)}</b> · ${esc(t.name)} · ${t.distance?esc(t.distance)+" km":""} · ${stops.length.toLocaleString()} scheduled stops<div id="live-${esc(t.number)}" style="margin-top:7px"><span class="muted">Live location not loaded</span></div></div>
+    <div class="actions"><button class="btn small" onclick="showRealTrainLive('${esc(t.number)}')">📍 Live Location</button><button class="btn primary small" onclick="showRealTrainRoute('${esc(t.number)}')">View Full Route</button></div>
    </div></div>`;
  }
  return `<div class="card train-card" style="margin-bottom:14px"><div><div class="station-time">${t.dep}</div><div class="station-name">${esc(t.from)}</div></div><div><div class="route-line">● ───── 🚆 ───── ●</div><div style="text-align:center;margin-top:8px"><span class="pill">${t.duration}</span> <span class="pill ${t.status==="On Time"?"ok":"warn"}">${t.status}</span></div></div><div style="text-align:right"><div class="station-time">${t.arr}</div><div class="station-name">${esc(t.to)}</div></div><div style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:13px"><div><b>${t.number}</b> · ${esc(t.name)} · From ₹${t.fare}</div><button class="btn primary small" onclick="bookTrain('${t.id}')">Select & Book</button></div></div>`;
