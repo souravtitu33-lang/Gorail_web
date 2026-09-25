@@ -51,7 +51,7 @@ async function loadFullDataset(){
  let box=$("#railDatasetStatus");if(box)box.textContent="Starting…";
  try{
   const res=await loadAllIndiaRailData(msg=>{if(box)box.textContent=msg});
-  if(box)box.innerHTML=`✅ Loaded: ${res.trains.toLocaleString()} trains · ${res.stations.toLocaleString()} stations`;
+  if(box)box.innerHTML=`✅ Loaded: ${res.trains.toLocaleString()} trains · ${res.stations.toLocaleString()} stations · ${res.scheduleStops?.toLocaleString()||0} timetable stops`;
   toast("All-India railway dataset loaded.","success");
  }catch(e){
   if(box)box.innerHTML=`<span style="color:#a31616">Failed to load (${esc(e.message)}). Check your internet connection and try again.</span>`;
@@ -142,11 +142,40 @@ function adminDashboard(){return pageTitle("Railway Operations & Management Dash
  ].map(x=>`<div class="card"><div style="font-size:26px">${x[0]}</div><div class="muted">${x[1]}</div><div class="stat">${x[2]}</div></div>`).join("")}</div>
  <div class="card" style="margin-top:18px"><h3>Quick Admin Operations</h3><div class="actions" style="margin-top:14px"><button class="btn primary" onclick="goto('manage-trains')">Manage Trains</button><button class="btn" onclick="goto('complaints')">Complaints</button><button class="btn" onclick="goto('broadcast')">Broadcast Notice</button></div></div>`}
 function searchPage(){
- return pageTitle("Train Enquiry","Search trains by source, destination and date",`<button class="btn" onclick="resetSearch()">Reset</button>`)
- +`<div class="card"><datalist id="stationList">${STATIONS_DB.map(s=>`<option value="${esc(s.name)}">`).join("")}</datalist><div class="form-grid"><div class="field"><label>From</label><input id="sfrom" list="stationList" placeholder="e.g. Mumbai Central"></div><div class="field"><label>To</label><input id="sto" list="stationList" placeholder="e.g. New Delhi"></div><div class="field"><label>Date</label><input id="sdate" type="date" value="${new Date().toISOString().slice(0,10)}"></div><div class="field"><label>Class</label><select id="sclass"><option value="">Any class</option><option>1A</option><option>2A</option><option>3A</option><option>SL</option></select></div></div><button class="btn primary" style="margin-top:15px" onclick="searchTrains()">Search Trains</button></div>
- <div id="results" style="margin-top:18px">${searchResults.length?searchResults.map(trainResult).join(""):`<div class="empty">Enter journey details and search.</div>`}</div>`;
+ return pageTitle("Train Enquiry","Search the complete Indian train timetable by actual route stops",`<button class="btn" onclick="resetSearch()">Reset</button>`)
+ +`<div class="card"><datalist id="stationList">${STATIONS_DB.map(s=>`<option value="${esc(s.name)}">`).join("")}</datalist>
+ <div class="form-grid"><div class="field"><label>From station / code</label><input id="sfrom" list="stationList" placeholder="e.g. NDLS or New Delhi"></div>
+ <div class="field"><label>To station / code</label><input id="sto" list="stationList" placeholder="e.g. HWH or Howrah"></div>
+ <div class="field"><label>Date</label><input id="sdate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+ <div class="field"><label>Class</label><select id="sclass"><option value="">Any class</option><option>1A</option><option>2A</option><option>3A</option><option>SL</option><option>CC</option><option>2S</option></select></div></div>
+ <div class="actions" style="margin-top:15px"><button class="btn primary" onclick="searchTrains()">Search All Indian Trains</button><button class="btn" onclick="loadFullDataset()">Load / Refresh Indian Railways Data</button></div>
+ <p class="muted" style="margin-top:10px">${railDatasetLoaded()?`Loaded ${ALL_TRAINS_INDEX.length.toLocaleString()} trains and ${ALL_STATIONS.length.toLocaleString()} stations. Route stops are read from the timetable schedules.`:"The complete open timetable is loaded on demand. The first load downloads the train, station and train-stop datasets."</p></div>
+ <div id="results" style="margin-top:18px">${searchResults.length?searchResults.map(trainResult).join(""):`<div class="empty">Load the database, then enter stations to find trains that actually stop at both locations.</div>`}</div>`;
 }
-function trainResult(t){return `<div class="card train-card" style="margin-bottom:14px"><div><div class="station-time">${t.dep}</div><div class="station-name">${esc(t.from)}</div></div><div><div class="route-line">● ───── 🚆 ───── ●</div><div style="text-align:center;margin-top:8px"><span class="pill">${t.duration}</span> <span class="pill ${t.status==="On Time"?"ok":"warn"}">${t.status}</span></div></div><div style="text-align:right"><div class="station-time">${t.arr}</div><div class="station-name">${esc(t.to)}</div></div><div style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:13px"><div><b>${t.number}</b> · ${esc(t.name)} · From ₹${t.fare}</div><button class="btn primary small" onclick="bookTrain('${t.id}')">Select & Book</button></div></div>`}
+function showRealTrainRoute(number){
+ const t=ALL_TRAINS_INDEX.find(x=>String(x.number)===String(number));
+ if(!t) return toast("Train not found in the loaded dataset.","warn");
+ const stops=getTrainRouteStops(number);
+ const route=getTrainRoute(number);
+ const stopRows=stops.length?stops.map((s,i)=>`<div style="display:grid;grid-template-columns:38px 1fr auto;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)"><b>${i+1}</b><div><b>${esc(s.station_name||s.station_code||"")}</b><div class="muted">${esc(s.station_code||"")}</div></div><div style="text-align:right"><div>${esc(s.arrival||"—")} → ${esc(s.departure||"—")}</div><div class="muted">Day ${esc(s.day||"—")}</div></div></div>`).join(""):`<div class="empty">No schedule-stop records are available for this train in the timetable dataset.</div>`;
+ modal=`<div class="modal-backdrop"><div class="modal" style="max-width:900px"><div class="modal-head"><h2>🚆 ${esc(t.number)} · ${esc(t.name)}</h2><button class="close" onclick="closeModal()">×</button></div><div class="notice"><b>${esc(t.from_name)}</b> → <b>${esc(t.to_name)}</b> · ${t.distance||"—"} km · ${t.duration_h||0}h ${t.duration_m||0}m · ${stops.length} scheduled stops</div><div class="actions" style="margin:12px 0">${(t.classes||[]).map(x=>`<span class="pill">${esc(x)}</span>`).join("")}<span class="pill">${esc(t.zone||"")}</span><span class="pill">${esc(t.type||"")}</span></div><div style="max-height:55vh;overflow:auto">${stopRows}</div><p class="muted" style="margin-top:12px">The timetable stop list comes from the open DataMeet railways schedules dataset. The line geometry is used for map routing where available.${route?` Route geometry contains ${route.length} coordinate points.`:""}</p></div></div>`;
+ drawModal();
+}
+function trainResult(t){
+ const real=!!t.__real;
+ if(real){
+  const stops=getTrainRouteStops(t.number);
+  return `<div class="card train-card" style="margin-bottom:14px">
+   <div><div class="station-time">${esc(t.departure||"—")}</div><div class="station-name">${esc(t.from_name||t.from||"")}</div></div>
+   <div><div class="route-line">● ───── 🚆 ───── ●</div><div style="text-align:center;margin-top:8px"><span class="pill">${t.duration_h||0}h ${t.duration_m||0}m</span> <span class="pill ok">TIMETABLE</span></div></div>
+   <div style="text-align:right"><div class="station-time">${esc(t.arrival||"—")}</div><div class="station-name">${esc(t.to_name||t.to||"")}</div></div>
+   <div style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:13px">
+    <div><b>${esc(t.number)}</b> · ${esc(t.name)} · ${t.distance?esc(t.distance)+" km":""} · ${stops.length.toLocaleString()} scheduled stops</div>
+    <button class="btn primary small" onclick="showRealTrainRoute('${esc(t.number)}')">View Full Route</button>
+   </div></div>`;
+ }
+ return `<div class="card train-card" style="margin-bottom:14px"><div><div class="station-time">${t.dep}</div><div class="station-name">${esc(t.from)}</div></div><div><div class="route-line">● ───── 🚆 ───── ●</div><div style="text-align:center;margin-top:8px"><span class="pill">${t.duration}</span> <span class="pill ${t.status==="On Time"?"ok":"warn"}">${t.status}</span></div></div><div style="text-align:right"><div class="station-time">${t.arr}</div><div class="station-name">${esc(t.to)}</div></div><div style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:13px"><div><b>${t.number}</b> · ${esc(t.name)} · From ₹${t.fare}</div><button class="btn primary small" onclick="bookTrain('${t.id}')">Select & Book</button></div></div>`;
+}
 function bookingsPage(){
  const bs=state.bookings.filter(b=>b.userId===session.id);
  return pageTitle("My Tickets","View, open and cancel your bookings",`<button class="btn primary" onclick="goto('search')">+ New Booking</button>`)
@@ -358,7 +387,18 @@ function saveTrain(id){let o={id:id||Date.now().toString(),number:$("#t_number")
 function deleteTrain(id){if(!confirm("Delete this train?"))return;state.trains=state.trains.filter(t=>t.id!==id);save();render()}
 function sendBroadcast(){let m=$("#broadcastText").value.trim();if(!m)return toast("Enter a notice.");state.broadcasts.push({id:"br"+Date.now(),message:m,date:new Date().toLocaleDateString("en-IN")});state.notifications.push({id:"bn"+Date.now(),title:"Railway Notice",body:m,date:new Date().toLocaleDateString("en-IN")});save();toast("Notice broadcasted.");render()}
 function resetSearch(){searchResults=[];goto("search")}
-function searchTrains(){let f=$("#sfrom").value.trim().toLowerCase(),to=$("#sto").value.trim().toLowerCase(),cl=$("#sclass").value;searchResults=state.trains.filter(t=>(!f||t.from.toLowerCase().includes(f))&&(!to||t.to.toLowerCase().includes(to))&&(!cl||t.classes.includes(cl)));render()}
+async function searchTrains(){
+ let f=$("#sfrom").value.trim(), to=$("#sto").value.trim(), cl=$("#sclass").value;
+ if(!railDatasetLoaded()){
+  toast("Loading the complete Indian train database…");
+  try{ await loadAllIndiaRailData(msg=>toast(msg)); }catch(e){ toast("Could not load Indian Railways dataset: "+(e.message||e),"warn"); return; }
+ }
+ const real=searchRealTrains(f,to,cl,100).map(t=>({...t,__real:true}));
+ searchResults=(f||to||cl)?real:[];
+ if(!f&&!to&&!cl) toast("Enter at least a From, To or Class filter.");
+ if((f||to||cl)&&!real.length) toast("No timetable match found for the selected route.","warn");
+ render();
+}
 
 render();drawModal();
 setInterval(()=>{const {ac,nonAc}=tatkalCountdown();const a=$("#tatkalAc"),n=$("#tatkalNonAc");if(a)a.textContent=ac;if(n)n.textContent=nonAc;},1000);
