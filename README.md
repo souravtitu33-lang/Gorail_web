@@ -67,3 +67,18 @@ Two honest notes on "exact location":
 - Without a live key, the marker shows an **estimated position**, calculated by walking the train's real route in proportion to elapsed time since its real scheduled departure — clearly labelled as an estimate, never presented as GPS truth.
 
 The map itself uses **Google Maps** if you add a Google Maps JavaScript API key in Settings, and falls back automatically to free **OpenStreetMap/Leaflet** tiles (no key, no billing) if you don't — the feature always works either way.
+
+
+## Indian Railways timetable data provenance
+
+GoRail's **All India Train Enquiry** uses the public [DataMeet railways](https://github.com/datameet/railways) dataset:
+- `trains.json`: train numbers, names, source/destination, timings, distance, classes and route geometry.
+- `stations.json`: station codes, names, zones/states and coordinates.
+- `schedules.json`: train-by-train timetable stops, including arrival/departure times and day numbers.
+- The DataMeet dataset is published under CC0/public-domain terms.
+
+The repository also links to the official Indian Railways Passenger Reservation Enquiry pages for live operational enquiries. Timetable data is **not the same as live running status or seat availability**, so GoRail labels timetable results separately from live API results.
+
+Official references:
+- Indian Railways Train Schedule: https://www.indianrail.gov.in/enquiry/SCHEDULE/TrainSchedule.html?locale=e
+- Government Open Data: https://www.data.gov.in/catalog/indian-railways-train-time-table
