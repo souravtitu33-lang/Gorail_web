@@ -59,15 +59,12 @@ Get a free-tier key at rapidapi.com by searching "irctc1". Third-party API paths
 - Print / Save-as-PDF button on the ticket confirmation
 - `api.js` is a self-contained live-data module — swap in a different provider by editing the endpoint paths in one place
 
-## 🗺️ Live Map — real routes, all real Indian trains (new)
-This is not a hardcoded shortlist. `railway-data.js` loads the full, real Indian Railways dataset published by DataMeet (CC0/public domain, gathered from Indian Railways open data): every station in the country and every train's actual route as a real GeoJSON path. Click **⚙️ Settings → "Load all India trains & stations"** once (a ~16MB one-time download, cached in the browser afterwards) and the Live Map page can search and plot **any of the ~13,000 real trains that run in India**, drawing their true route.
+## 🗺️ Live Map — complete real train routes
+GoRail's timetable search and Live Map now use the **Indian-Railway-Data** open dataset as the primary source. It contains 5,208+ train records and 8,990+ station records. Each train includes its ordered route, intermediate stops, arrival/departure times, journey days, running days and total distance.
 
-Two honest notes on "exact location":
-- **No public GPS feed for Indian trains exists.** With a RapidAPI key connected, the map shows the train's last officially reported station (the same granularity real "Where is my train"-style apps use).
-- Without a live key, the marker shows an **estimated position**, calculated by walking the train's real route in proportion to elapsed time since its real scheduled departure — clearly labelled as an estimate, never presented as GPS truth.
+The complete train master is about 96.6 MB, so GoRail intentionally loads it on demand rather than making every page wait for a large download. After loading, the browser builds an index and caches it locally. Route coordinates are resolved from the station directory, so a train's full stop sequence can also be drawn on the map.
 
-The map itself uses **Google Maps** if you add a Google Maps JavaScript API key in Settings, and falls back automatically to free **OpenStreetMap/Leaflet** tiles (no key, no billing) if you don't — the feature always works either way.
-
+This is **timetable/reference data**, not live GPS. Live running status, PNR, seat availability and fare remain separate optional API features.
 
 ## Indian Railways timetable data provenance
 
