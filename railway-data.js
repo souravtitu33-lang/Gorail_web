@@ -20,11 +20,13 @@
 
 const RAIL_STATIONS_URL = "https://github.com/datameet/railways/raw/refs/heads/master/stations.json";
 const RAIL_TRAINS_URL = "https://github.com/datameet/railways/raw/refs/heads/master/trains.json";
-const RAIL_CACHE_KEY = "gorail_all_india_index_v1";
+const RAIL_SCHEDULES_URL = "https://github.com/datameet/railways/raw/refs/heads/master/schedules.json";
+const RAIL_CACHE_KEY = "gorail_all_india_index_v2";
 
 let ALL_STATIONS = [];      // [{code,name,state,zone,lat,lon}]
 let ALL_TRAINS_INDEX = [];  // [{number,name,from,from_name,to,to_name,zone,distance,duration_h,duration_m,classes:[..]}]
 let ALL_TRAINS_GEOJSON = null; // full FeatureCollection kept in-memory only (for route polylines)
+let ALL_TRAIN_SCHEDULES = new Map(); // train number -> ordered station stops
 
 function railDatasetLoaded(){ return ALL_TRAINS_INDEX.length > 0; }
 function railStationsLoaded(){ return ALL_STATIONS.length > 0; }
@@ -75,12 +77,24 @@ async function loadAllIndiaRailData(onProgress){
     };
   }).filter(t=>t.number && t.name);
 
+  onProgress?.("Downloading complete train-stop schedules…");
+  const schRes = await fetch(RAIL_SCHEDULES_URL);
+  if(!schRes.ok) throw new Error("SCHEDULES_FETCH_FAILED_" + schRes.status);
+  const schedules = await schRes.json();
+  ALL_TRAIN_SCHEDULES = new Map();
+  for(const stop of (Array.isArray(schedules) ? schedules : [])){
+    const n = String(stop.train_number || "").trim();
+    if(!n) continue;
+    if(!ALL_TRAIN_SCHEDULES.has(n)) ALL_TRAIN_SCHEDULES.set(n, []);
+    ALL_TRAIN_SCHEDULES.get(n).push({day:stop.day, station_code:stop.station_code, station_name:stop.station_name, arrival:stop.arrival, departure:stop.departure, id:stop.id});
+  }
+  for(const stops of ALL_TRAIN_SCHEDULES.values()) stops.sort((a,b)=>(Number(a.day)||0)-(Number(b.day)||0) || (Number(a.id)||0)-(Number(b.id)||0));
   try{
     localStorage.setItem(RAIL_CACHE_KEY, JSON.stringify({stations: ALL_STATIONS, trains: ALL_TRAINS_INDEX}));
   }catch(e){ /* quota exceeded — fine, stays in-memory for this session */ }
 
   onProgress?.("Done");
-  return { stations: ALL_STATIONS.length, trains: ALL_TRAINS_INDEX.length };
+  return { stations: ALL_STATIONS.length, trains: ALL_TRAINS_INDEX.length, scheduleStops: [...ALL_TRAIN_SCHEDULES.values()].reduce((n,a)=>n+a.length,0) };
 }
 
 function searchAllTrains(query, limit=25){
@@ -153,3 +167,6 @@ function scheduleFraction(departureHHMM, durationH, durationM, dateStr){
     return Math.max(0, Math.min(1, elapsed/totalMs));
   }catch(e){ return 0; }
 }
+
+
+// Actual timetable stops from schedules.json.\nfunction getTrainRouteStops(trainNumber){ return ALL_TRAIN_SCHEDULES.get(String(trainNumber)) || []; }\n\n// Search the full train index using actual source/destination stops when schedules are loaded.\nfunction searchRealTrains(fromQuery="", toQuery="", classQuery="", limit=50){\n  const f=(fromQuery||"").trim().toLowerCase(), t=(toQuery||"").trim().toLowerCase(), cl=(classQuery||"").trim().toUpperCase();\n  const out=[];\n  for(const train of ALL_TRAINS_INDEX){\n    if(cl && !(train.classes||[]).includes(cl)) continue;\n    const stops=getTrainRouteStops(train.number);\n    const fromEndpoint=((train.from_name||"")+" "+(train.from||"")).toLowerCase();\n    const toEndpoint=((train.to_name||"")+" "+(train.to||"")).toLowerCase();\n    let fi=f ? (fromEndpoint.includes(f)?0:-1) : 0;\n    let ti=t ? (toEndpoint.includes(t)?Math.max(1,stops.length-1):-1) : Math.max(1,stops.length-1);\n    if(stops.length){\n      if(f) fi=stops.findIndex(s=>(s.station_name||"").toLowerCase().includes(f)||(s.station_code||"").toLowerCase()===f);\n      if(t) ti=stops.findIndex(s=>(s.station_name||"").toLowerCase().includes(t)||(s.station_code||"").toLowerCase()===t);\n      if(f && fi<0) continue; if(t && ti<0) continue; if(f && t && fi>=ti) continue;\n    } else if((f && !fromEndpoint.includes(f)) || (t && !toEndpoint.includes(t))) continue;\n    out.push(train); if(out.length>=limit) break;\n  }\n  return out;\n}\n
