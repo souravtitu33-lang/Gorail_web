@@ -41,7 +41,7 @@ function settingsModal(){let k=getApiKey(),gk=getGMapsKey();modal=`<div class="m
  <div class="actions" style="margin-top:14px"><button class="btn primary" onclick="saveGMapsKey()">Save Key</button>${gk?`<button class="btn danger" onclick="clearGMapsKey()">Remove Key</button>`:""}</div>
  <hr style="margin:20px 0;border:none;border-top:1px solid var(--line)">
  <h3>🚆 All-India train &amp; station database</h3>
- <p class="muted">Loads the real, complete Indian Railways dataset — every station and every train with its actual route — from the public DataMeet railways dataset (CC0). One-time download (~16MB), then cached in this browser.</p>
+ <p class="muted">Loads the complete open Indian-Railway-Data timetable: 5,208+ trains and 8,990+ stations, with ordered route stops, halt times, journey days and running days. The train master is about 96.6 MB, so it is downloaded only when requested and then indexed/cached in this browser.</p>
  <div id="railDatasetStatus" class="notice" style="margin-top:10px">${railDatasetLoaded()?`✅ Loaded: ${ALL_TRAINS_INDEX.length.toLocaleString()} trains · ${ALL_STATIONS.length.toLocaleString()} stations`:"Not loaded yet."}</div>
  <button class="btn primary" style="margin-top:10px" onclick="loadFullDataset()">${railDatasetLoaded()?"Reload dataset":"Load all India trains & stations"}</button>
  </div></div>`;drawModal()}
@@ -143,13 +143,13 @@ function adminDashboard(){return pageTitle("Railway Operations & Management Dash
  <div class="card" style="margin-top:18px"><h3>Quick Admin Operations</h3><div class="actions" style="margin-top:14px"><button class="btn primary" onclick="goto('manage-trains')">Manage Trains</button><button class="btn" onclick="goto('complaints')">Complaints</button><button class="btn" onclick="goto('broadcast')">Broadcast Notice</button></div></div>`}
 function searchPage(){
  return pageTitle("Train Enquiry","Search the complete Indian train timetable by actual route stops",`<button class="btn" onclick="resetSearch()">Reset</button>`)
- +`<div class="card"><datalist id="stationList">${STATIONS_DB.map(s=>`<option value="${esc(s.name)}">`).join("")}</datalist>
+ +`<div class="card"><datalist id="stationList">${(ALL_STATIONS.length?ALL_STATIONS:STATIONS_DB).map(s=>`<option value="${esc(s.name)}">${esc(s.code||"")}</option>`).join("")}</datalist>
  <div class="form-grid"><div class="field"><label>From station / code</label><input id="sfrom" list="stationList" placeholder="e.g. NDLS or New Delhi"></div>
  <div class="field"><label>To station / code</label><input id="sto" list="stationList" placeholder="e.g. HWH or Howrah"></div>
  <div class="field"><label>Date</label><input id="sdate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
  <div class="field"><label>Class</label><select id="sclass"><option value="">Any class</option><option>1A</option><option>2A</option><option>3A</option><option>SL</option><option>CC</option><option>2S</option></select></div></div>
  <div class="actions" style="margin-top:15px"><button class="btn primary" onclick="searchTrains()">Search All Indian Trains</button><button class="btn" onclick="loadFullDataset()">Load / Refresh Indian Railways Data</button></div>
- <p class="muted" style="margin-top:10px">${railDatasetLoaded()?`Loaded ${ALL_TRAINS_INDEX.length.toLocaleString()} trains and ${ALL_STATIONS.length.toLocaleString()} stations. Route stops are read from the timetable schedules.`:"The complete open timetable is loaded on demand. The first load downloads the train, station and train-stop datasets."</p></div>
+ <p class="muted" style="margin-top:10px">${railDatasetLoaded()?`Loaded ${ALL_TRAINS_INDEX.length.toLocaleString()} trains and ${ALL_STATIONS.length.toLocaleString()} stations. Route stops are read from the timetable schedules.`:"The complete open timetable is loaded on demand. The first load downloads the train and station datasets; each train already contains its complete ordered route and timetable stops."</p></div>
  <div id="results" style="margin-top:18px">${searchResults.length?searchResults.map(trainResult).join(""):`<div class="empty">Load the database, then enter stations to find trains that actually stop at both locations.</div>`}</div>`;
 }
 function showRealTrainRoute(number){
