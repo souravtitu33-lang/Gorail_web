@@ -1,11 +1,19 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GoRail — Railway Operations & Management</title>
-<link rel="stylesheet" href="styles.css">
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GoRail — Railway Operations & Management</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script>
+    // Apply saved theme before paint to avoid a flash of the wrong theme.
+    document.documentElement.setAttribute("data-theme", localStorage.getItem("gorail_theme") || "light");
+  </script>
 </head>
-<body><div id="app"></div><script src="app.js"></script></body>
+<body>
+<div id="app"></div>
+<script src="api.js"></script>
+<script src="app.js"></script>
+</body>
 </html>
