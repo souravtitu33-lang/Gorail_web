@@ -20,7 +20,8 @@ const seed={
     {id:"f3",name:"Masala Tea",price:25,cat:"Beverage"},{id:"f4",name:"Water Bottle",price:20,cat:"Beverage"}
   ]
 };
-let state=JSON.parse(localStorage.getItem(KEY)||"null")||seed;
+let state=seed;
+try{ const saved=localStorage.getItem(KEY); if(saved) state=JSON.parse(saved)||seed; }catch(e){ state=seed; try{localStorage.removeItem(KEY)}catch(_e){} }
 let session=JSON.parse(localStorage.getItem("gorail_session")||"null");
 let page="dashboard", modal=null, searchResults=[];
 loadCachedIndex();
