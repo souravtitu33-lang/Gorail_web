@@ -168,6 +168,29 @@ function showRealTrainRoute(number){
  modal=`<div class="modal-backdrop"><div class="modal" style="max-width:900px"><div class="modal-head"><h2>🚆 ${esc(t.number)} · ${esc(t.name)}</h2><button class="close" onclick="closeModal()">×</button></div><div class="notice"><b>${esc(t.from_name)}</b> → <b>${esc(t.to_name)}</b> · ${t.distance||"—"} km · ${t.duration_h||0}h ${t.duration_m||0}m · ${stops.length} scheduled stops</div><div class="actions" style="margin:12px 0">${(t.classes||[]).map(x=>`<span class="pill">${esc(x)}</span>`).join("")}<span class="pill">${esc(t.zone||"")}</span><span class="pill">${esc(t.type||"")}</span></div><div class="notice" style="margin-bottom:12px"><b>Runs:</b> ${Object.entries(t.runningDays||{}).filter(([,v])=>v).map(([d])=>d).join(", ")||"Schedule days not available"} · <b>Total distance:</b> ${esc(t.distance||"—")} km</div><div style="max-height:55vh;overflow:auto">${stopRows}</div><p class="muted" style="margin-top:12px">The timetable stop list comes from the open Indian-Railway-Data timetable snapshot. The line geometry is used for map routing where available.${route?` Route geometry contains ${route.length} coordinate points.`:""}</p></div></div>`;
  drawModal();
 }
+async function showRealTrainLive(number){
+  const host=document.getElementById("live-"+number);
+  if(host) host.innerHTML="<span class=\"muted\">Fetching live running status…</span>";
+  if(!hasLiveData()){
+    if(host) host.innerHTML="<span class=\"pill warn\">Connect RapidAPI in Settings for live location</span>";
+    return;
+  }
+  try{
+    const j=await GoRailAPI.liveStatus(number,"1");
+    const d=j?.data||j?.result||j;
+    const pos=d?.currentLocation||d?.current_position||d?.currentPosition||{};
+    const station=pos.stationName||pos.station_name||pos.station||pos.currentStationName||pos.stationCode||"Location unavailable";
+    const delay=d?.delay||d?.delayInMinutes||d?.delayMinutes||pos.delay||0;
+    const status=d?.status||d?.trainStatus||pos.status||"Running status available";
+    const next=d?.nextStation||d?.nextHalt||d?.next_station||{};
+    const nextName=next.name||next.stationName||next.station_name||next.stationCode||"";
+    const lat=pos.latitude??pos.lat??d?.latitude??d?.lat;
+    const lon=pos.longitude??pos.lng??pos.lon??d?.longitude??d?.lng;
+    if(host) host.innerHTML="<span class=\"pill ok\">● LIVE</span> <b>"+esc(String(station))+"</b> · "+esc(String(status))+(delay? " · "+esc(String(delay))+" min delay":"")+(nextName?" · Next: "+esc(String(nextName)):"")+(lat!=null&&lon!=null?" · "+Number(lat).toFixed(4)+", "+Number(lon).toFixed(4):"");
+  }catch(e){
+    if(host) host.innerHTML="<span class=\"pill warn\">Live status unavailable</span> <span class=\"muted\">Check your RapidAPI key/API quota.</span>";
+  }
+}
 function trainResult(t){
  const real=!!t.__real;
  if(real){
