@@ -33,7 +33,7 @@ function toast(msg,type="info"){let r=$("#toastRoot");if(!r){r=document.createEl
 function toggleTheme(){let cur=document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",cur);localStorage.setItem("gorail_theme",cur);render()}
 function liveBadge(){let on=hasLiveData();return `<span class="live-badge ${on?"":"off"}" title="${on?"Connected to live Indian Railways data (RapidAPI)":"Running on demo data — add a RapidAPI key in Settings for real live data"}"><span class="dot"></span>${on?"LIVE DATA":"DEMO DATA"}</span>`}
 function settingsModal(){let k=getApiKey(),gk=getGMapsKey();modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>⚙️ Live Data Settings</h2><button class="close" onclick="closeModal()">×</button></div>
- <p class="muted">GoRail can pull <b>real</b> Indian Railways data (live running status, PNR status, seat availability, fare) through the <b>irctc1</b> API on RapidAPI. Paste your own personal RapidAPI key below — it's stored only in this browser (localStorage), never sent anywhere but RapidAPI's servers.</p>
+ <p class="muted">GoRail uses RailRadar for live train running status through a secure server-side proxy. Add your RailRadar API key as <b>RAILRADAR_API_KEY</b> in your Vercel project's Environment Variables. The key must not be placed in this public repository or browser storage. The RapidAPI key field below remains for legacy PNR, seat and fare features.</p>
  <div class="field" style="margin-top:14px"><label>RapidAPI Key</label><input id="apiKeyInput" placeholder="paste your RapidAPI key" value="${esc(k)}"></div>
  <div class="actions" style="margin-top:14px"><button class="btn primary" onclick="saveApiKey()">Save Key</button>${k?`<button class="btn danger" onclick="clearApiKey()">Remove Key</button>`:""}</div>
  <div class="notice" style="margin-top:16px">Don't have a key? Get a free-tier key at <b>rapidapi.com</b> (search "irctc1"). Without a key, GoRail keeps working with clearly-labelled demo data — nothing breaks.<br><br>✅ Live station weather works with <b>no key at all</b> (free public Open-Meteo API), and already appears on Live Status and Station Info.</div>
@@ -171,10 +171,6 @@ function showRealTrainRoute(number){
 async function showRealTrainLive(number){
   const host=document.getElementById("live-"+number);
   if(host) host.innerHTML="<span class=\"muted\">Fetching live running status…</span>";
-  if(!hasLiveData()){
-    if(host) host.innerHTML="<span class=\"pill warn\">Connect RapidAPI in Settings for live location</span>";
-    return;
-  }
   try{
     const j=await GoRailAPI.liveStatus(number,"1");
     const d=j?.data||j?.result||j;
