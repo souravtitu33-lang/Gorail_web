@@ -45,9 +45,22 @@ const GoRailAPI = {
   getApiKey,
   setApiKey,
 
-  // Live running status of a train (real data, needs key)
+  // RailRadar live running status. The key is kept server-side in RAILRADAR_API_KEY.
   liveStatus(trainNo, startDay = "1") {
-    return rapidGet("/api/v1/getLiveTrainStatus", { trainNo, startDay });
+    const number = String(trainNo || "").trim();
+    if (!/^\d{5}$/.test(number)) {
+      const e = new Error("INVALID_TRAIN_NUMBER"); e.code = "INVALID_TRAIN_NUMBER"; throw e;
+    }
+    return fetch("/api/railradar?number=" + encodeURIComponent(number), {
+      headers: { "Accept": "application/json" }
+    }).then(async res => {
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const e = new Error(body?.error || "RAILRADAR_ERROR_" + res.status);
+        e.code = "RAILRADAR_ERROR"; e.status = res.status; throw e;
+      }
+      return body;
+    });
   },
   // PNR status (real data, needs key)
   pnrStatus(pnrNumber) {
