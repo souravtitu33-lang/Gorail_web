@@ -323,7 +323,7 @@ function goto(p){page=p;searchResults=[];render();window.scrollTo({top:0,behavio
 function isValidEmail(email){return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(email)}
 function isStrongPassword(pass){return pass.length>=12 && /[a-z]/.test(pass) && /[A-Z]/.test(pass) && /\\d/.test(pass) && /[^A-Za-z0-9]/.test(pass)}
 function login(){let email=$("#lemail").value.trim().toLowerCase(),pass=$("#lpass").value;
- if(!isValidEmail(email)){toast("Enter a valid email address, e.g. dino18@gmail.com.","warn");return}
+ if(!isValidEmail(email)){toast("Enter a valid email address, e.g. yourname@gmail.com.","warn");return}
  if(!pass){toast("Enter your password.","warn");return}
  let u=state.users.find(x=>String(x.email).toLowerCase()===email&&x.password===pass);
  if(!u){toast("Invalid email or password. Create an account first if you are a new user.","warn");return}
@@ -332,7 +332,7 @@ function logout(){session=null;save();render()}
 function registerModal(){modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>Create Account</h2><button class="close" onclick="closeModal()">×</button></div><div class="form-grid"><div class="field"><label>Name</label><input id="rname"></div><div class="field"><label>Phone</label><input id="rphone"></div><div class="field"><label>Email</label><input id="remail"></div><div class="field"><label>Password</label><input id="rpass" type="password"></div></div><button class="btn primary" style="margin-top:15px" onclick="register()">Register</button></div></div>`;drawModal()}
 function register(){let name=$("#rname").value.trim(),email=$("#remail").value.trim().toLowerCase(),pass=$("#rpass").value,phone=$("#rphone").value.trim();
  if(!name||!email||!pass){toast("Please fill required fields.","warn");return}
- if(!isValidEmail(email)){toast("Enter a valid email address, e.g. dino18@gmail.com.","warn");return}
+ if(!isValidEmail(email)){toast("Enter a valid email address, e.g. yourname@gmail.com.","warn");return}
  if(!isStrongPassword(pass)){toast("Use a strong password: at least 12 characters with uppercase, lowercase, number, and special character.","warn");return}
  if(state.users.some(u=>String(u.email).toLowerCase()===email)){toast("Email already registered. Please log in.","warn");return}
  let u={id:"u"+Date.now(),name,email,password:pass,phone,role:"passenger"};state.users.push(u);session={...u};save();closeModal();goto("dashboard") }
