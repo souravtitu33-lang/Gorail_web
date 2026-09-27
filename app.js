@@ -4,7 +4,7 @@ const $$ = (s,root=document)=>[...root.querySelectorAll(s)];
 // This seed list is only used by the booking/admin demo flows until a real train is selected.
 const KEY="gorail_web_state_v1";
 const seed={
-  users:[{id:"u1",name:"Demo Passenger",email:"passenger@gorail.app",password:"123456",phone:"9876543210",role:"passenger"}],
+  users:[],
   trains:[
     {id:"12951",number:"12951",name:"Mumbai Rajdhani",from:"Mumbai Central",to:"New Delhi",dep:"17:00",arr:"08:35",duration:"15h 35m",fare:1850,classes:["1A","2A","3A"],seats:42,platform:"4",status:"On Time"},
     {id:"12864",number:"12864",name:"Bengaluru Express",from:"Bengaluru",to:"Howrah",dep:"10:30",arr:"13:10",duration:"26h 40m",fare:1250,classes:["2A","3A","SL"],seats:67,platform:"2",status:"On Time"},
@@ -96,11 +96,11 @@ function render(){
 }
 function loginView(){return `<div class="login-wrap"><div class="login">
  <div class="brand">🚆 GoRail</div><h1>Railway Operations & Management</h1><p class="muted">Passenger and railway management portal</p>
- <div class="form-grid" style="margin-top:22px"><div class="field" style="grid-column:1/-1"><label>Email</label><input id="lemail" value="passenger@gorail.app"></div>
- <div class="field" style="grid-column:1/-1"><label>Password</label><input id="lpass" type="password" value="123456"></div></div>
+ <div class="form-grid" style="margin-top:22px"><div class="field" style="grid-column:1/-1"><label>Email</label><input id="lemail" type="email" placeholder="name@example.com" autocomplete="username"></div>
+ <div class="field" style="grid-column:1/-1"><label>Password</label><input id="lpass" type="password" placeholder="Enter your password" autocomplete="current-password"></div></div>
  <button class="btn primary" style="width:100%;margin-top:16px" onclick="login()">Login</button>
  <button class="btn" style="width:100%;margin-top:10px" onclick="registerModal()">Create passenger account</button>
- <div class="notice" style="margin-top:16px">Demo admin: <b>admin@gorail.app</b> / <b>admin123</b></div>
+ <div class="notice" style="margin-top:16px">Use your registered email and password. New users must create an account with a strong password.</div>
  </div></div>`}
 function pageTitle(title,sub,actions=""){return `<div class="page-title"><div><h1>${title}</h1><div class="muted">${sub||""}</div></div><div class="actions">${actions}</div></div>`}
 function renderPage(){
@@ -320,12 +320,22 @@ async function trackTrainOnMap(){
 }
 function ticketMini(b){let t=state.trains.find(x=>x.id===b.trainId)||b.train;return `<div style="margin-top:12px"><b>${t.number} · ${esc(t.name)}</b><p class="muted">${t.from} → ${t.to}<br>PNR ${b.pnr}</p></div>`}
 function goto(p){page=p;searchResults=[];render();window.scrollTo({top:0,behavior:"smooth"});if(p==="stations")setTimeout(loadStationsWeather,10)}
-function login(){let email=$("#lemail").value.trim(),pass=$("#lpass").value;let u=state.users.find(x=>x.email===email&&x.password===pass);
- if(email==="admin@gorail.app"&&pass==="admin123"){session={id:"admin",name:"Admin Panel",email,role:"admin"};save();goto("dashboard");return}
- if(!u){toast("Invalid login. Use passenger@gorail.app / 123456 or the demo admin.");return}session={...u};save();goto("dashboard")}
+function isValidEmail(email){return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(email)}
+function isStrongPassword(pass){return pass.length>=12 && /[a-z]/.test(pass) && /[A-Z]/.test(pass) && /\\d/.test(pass) && /[^A-Za-z0-9]/.test(pass)}
+function login(){let email=$("#lemail").value.trim().toLowerCase(),pass=$("#lpass").value;
+ if(!isValidEmail(email)){toast("Enter a valid email address, e.g. dino18@gmail.com.","warn");return}
+ if(!pass){toast("Enter your password.","warn");return}
+ let u=state.users.find(x=>String(x.email).toLowerCase()===email&&x.password===pass);
+ if(!u){toast("Invalid email or password. Create an account first if you are a new user.","warn");return}
+ session={...u};save();goto("dashboard") }
 function logout(){session=null;save();render()}
 function registerModal(){modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>Create Account</h2><button class="close" onclick="closeModal()">×</button></div><div class="form-grid"><div class="field"><label>Name</label><input id="rname"></div><div class="field"><label>Phone</label><input id="rphone"></div><div class="field"><label>Email</label><input id="remail"></div><div class="field"><label>Password</label><input id="rpass" type="password"></div></div><button class="btn primary" style="margin-top:15px" onclick="register()">Register</button></div></div>`;drawModal()}
-function register(){let name=$("#rname").value.trim(),email=$("#remail").value.trim(),pass=$("#rpass").value,phone=$("#rphone").value.trim();if(!name||!email||!pass){toast("Please fill required fields.");return}if(state.users.some(u=>u.email===email)){toast("Email already registered.");return}let u={id:"u"+Date.now(),name,email,password:pass,phone,role:"passenger"};state.users.push(u);session={...u};save();closeModal();goto("dashboard")}
+function register(){let name=$("#rname").value.trim(),email=$("#remail").value.trim().toLowerCase(),pass=$("#rpass").value,phone=$("#rphone").value.trim();
+ if(!name||!email||!pass){toast("Please fill required fields.","warn");return}
+ if(!isValidEmail(email)){toast("Enter a valid email address, e.g. dino18@gmail.com.","warn");return}
+ if(!isStrongPassword(pass)){toast("Use a strong password: at least 12 characters with uppercase, lowercase, number, and special character.","warn");return}
+ if(state.users.some(u=>String(u.email).toLowerCase()===email)){toast("Email already registered. Please log in.","warn");return}
+ let u={id:"u"+Date.now(),name,email,password:pass,phone,role:"passenger"};state.users.push(u);session={...u};save();closeModal();goto("dashboard") }
 function closeModal(){modal=null;drawModal()}
 function drawModal(){let old=$("#modalRoot");if(old)old.remove();if(modal){let d=document.createElement("div");d.id="modalRoot";d.innerHTML=modal;document.body.appendChild(d)}}
 function bookTrain(id){let t=state.trains.find(x=>x.id===id);if(!t)return;modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>Passenger Details</h2><button class="close" onclick="closeModal()">×</button></div><div class="notice">${t.number} · ${esc(t.name)} · ${esc(t.from)} → ${esc(t.to)}</div><div class="form-grid" style="margin-top:15px"><div class="field"><label>Passenger Name</label><input id="bname" value="${esc(session.name)}"></div><div class="field"><label>Age</label><input id="bage" type="number" value="21"></div><div class="field"><label>Class</label><select id="bclass">${t.classes.map(c=>`<option>${c}</option>`).join("")}</select></div><div class="field"><label>Gender</label><select id="bgender"><option>Male</option><option>Female</option><option>Other</option></select></div></div><button class="btn primary" style="margin-top:15px;width:100%" onclick="confirmBooking('${t.id}')">Confirm Booking · ₹${t.fare}</button></div></div>`;drawModal()}
