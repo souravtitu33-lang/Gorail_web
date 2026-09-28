@@ -40,8 +40,11 @@ async function railRadarGet(params = {}) {
 
 const GoRailAPI = {
   hasLiveData,
-  liveStatus(trainNo, _startDay = "1") {
-    return railRadarGet({ action: "live", number: trainNo });
+  liveStatus(trainNo, _startDay = "1", date) {
+    return railRadarGet({ action: "live", number: trainNo, date });
+  },
+  trainRoute(trainNo) {
+    return railRadarGet({ action: "route", number: trainNo });
   },
   pnrStatus(pnrNumber) {
     return railRadarGet({ action: "pnr", pnr: pnrNumber });
