@@ -27,10 +27,21 @@ async function railRadarGet(params = {}) {
   Object.entries(params).forEach(([k,v]) => {
     if (v !== undefined && v !== null && String(v).trim() !== "") query.set(k, String(v).trim());
   });
-  const response = await fetch("/api/railradar?" + query.toString(), {
-    headers: { "Accept": "application/json" },
-    cache: "no-store"
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  let response;
+  try {
+    response = await fetch("/api/railradar?" + query.toString(), {
+      headers: { "Accept": "application/json" },
+      cache: "no-store",
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("RailRadar timed out after 15 seconds. Showing the schedule-based position instead.");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
   const body = await response.json().catch(() => ({}));
   if (!response.ok || body?.success === false) {
     const message = body?.error?.message || body?.error || "RailRadar request failed (" + response.status + ")";
