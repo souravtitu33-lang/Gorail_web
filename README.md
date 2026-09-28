@@ -42,13 +42,11 @@ Admin:
 ## Important
 The APK uses Firebase/Firestore. This web version intentionally keeps data in browser localStorage so it can run immediately without exposing or guessing the original Firebase credentials. For production, connect the same entities (`users`, `trains`, `bookings`, `complaints`, `notifications`, etc.) to your Firebase project or a GoRail backend.
 
-## Live data (new)
-There is no official public IRCTC API. This build adds two real, working tiers of live data on top of the original demo:
+## Live data
 
-1. **Free, no key needed** — real-time weather at every station (Open-Meteo). This works immediately on the Live Status and Station Info pages.
-2. **Optional, key required** — real Indian Railways data (live running status, PNR status, seat availability, fare) via the `irctc1` API on RapidAPI, the provider most open-source Indian-Railways tools use. Click the ⚙️ gear icon in the top bar, paste a personal RapidAPI key, and Save. The **LIVE DATA / DEMO DATA** badge in the top bar (and on each relevant page) always tells you which mode you're in. Without a key the app runs exactly as before, on demo data — nothing breaks.
+GoRail uses RailRadar for live train running status, PNR status, seat availability and fare through a secure Vercel serverless proxy. Configure `RAILRADAR_API_KEY` in Vercel Environment Variables. Never put the key in frontend code or GitHub.
 
-Get a free-tier key at rapidapi.com by searching "irctc1". Third-party API paths occasionally change on the provider's side; if a call fails, GoRail shows the error and falls back to demo data instead of breaking.
+Station weather is provided by Open-Meteo and requires no API key. If a railway API request fails, the app displays an error or a clearly labelled schedule estimate where applicable.
 
 ## Other upgrades in this build
 - Live IST tatkal-booking countdown on the dashboard (real clock, no key needed)
