@@ -29,7 +29,39 @@ const RAIL_TRAINS_URLS = [
   "https://github.com/datameet/railways/raw/refs/heads/master/trains.json"
 ];
 const RAIL_SCHEDULES_URL = "https://github.com/datameet/railways/raw/refs/heads/master/schedules.json";
-const RAIL_CACHE_KEY = "gorail_all_india_index_v3";
+const RAIL_CACHE_KEY = "gorail_all_india_index_v4";
+const RAIL_IDB_NAME = "gorail_railway_data";
+const RAIL_IDB_STORE = "datasets";
+let railLoadPromise = null;
+
+function openRailDB(){
+  return new Promise((resolve,reject)=>{
+    if(!("indexedDB" in window)) return resolve(null);
+    const request=indexedDB.open(RAIL_IDB_NAME,1);
+    request.onupgradeneeded=()=>{ if(!request.result.objectStoreNames.contains(RAIL_IDB_STORE)) request.result.createObjectStore(RAIL_IDB_STORE); };
+    request.onsuccess=()=>resolve(request.result);
+    request.onerror=()=>reject(request.error);
+  });
+}
+async function readRailDB(){
+  const db=await openRailDB(); if(!db) return null;
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(RAIL_IDB_STORE,"readonly");
+    const req=tx.objectStore(RAIL_IDB_STORE).get("all-india-v1");
+    req.onsuccess=()=>{db.close();resolve(req.result||null)};
+    req.onerror=()=>{db.close();reject(req.error)};
+  });
+}
+async function writeRailDB(value){
+  const db=await openRailDB(); if(!db) return false;
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(RAIL_IDB_STORE,"readwrite");
+    tx.objectStore(RAIL_IDB_STORE).put(value,"all-india-v1");
+    tx.oncomplete=()=>{db.close();resolve(true)};
+    tx.onerror=()=>{db.close();reject(tx.error)};
+    tx.onabort=()=>{db.close();reject(tx.error||new Error("IndexedDB write aborted"))};
+  });
+}
 
 let ALL_STATIONS = [];      // [{code,name,state,zone,lat,lon}]
 let ALL_TRAINS_INDEX = [];  // [{number,name,from,from_name,to,to_name,zone,distance,duration_h,duration_m,classes:[..]}]
@@ -59,6 +91,17 @@ function classListFromProps(p){
 
 // Loads the full real dataset. Reports progress via onProgress(stage, pct?).
 async function loadAllIndiaRailData(onProgress){
+  if(railLoadPromise) return railLoadPromise;
+  railLoadPromise=(async()=>{
+  try{
+    const cached=await readRailDB().catch(()=>null);
+    if(cached?.stations?.length && cached?.trains?.length && Array.isArray(cached?.schedules)){
+      ALL_STATIONS=cached.stations; ALL_TRAINS_INDEX=cached.trains; ALL_TRAINS_GEOJSON=null;
+      ALL_TRAIN_SCHEDULES=new Map(cached.schedules);
+      onProgress?.("Loaded the saved all-India timetable.");
+      return {stations:ALL_STATIONS.length,trains:ALL_TRAINS_INDEX.length,scheduleStops:[...ALL_TRAIN_SCHEDULES.values()].reduce((n,a)=>n+a.length,0),cached:true};
+    }
+  }catch(e){}
   onProgress?.("Downloading all Indian railway stations…");
   let sJson=null, sRes=null, stationSource=0;
   for(const url of RAIL_STATIONS_URLS){
@@ -134,12 +177,14 @@ async function loadAllIndiaRailData(onProgress){
     ALL_TRAIN_SCHEDULES.get(n).push({day:stop.day, station_code:stop.station_code, station_name:stop.station_name, arrival:stop.arrival, departure:stop.departure, id:stop.id});
   }
   for(const stops of ALL_TRAIN_SCHEDULES.values()) stops.sort((a,b)=>(Number(a.day)||0)-(Number(b.day)||0) || (Number(a.id)||0)-(Number(b.id)||0));
-  try{
-    localStorage.setItem(RAIL_CACHE_KEY, JSON.stringify({stations: ALL_STATIONS, trains: ALL_TRAINS_INDEX}));
-  }catch(e){ /* quota exceeded — fine, stays in-memory for this session */ }
-
+  const result={stations:ALL_STATIONS.length,trains:ALL_TRAINS_INDEX.length,scheduleStops:[...ALL_TRAIN_SCHEDULES.values()].reduce((n,a)=>n+a.length,0),cached:false};
+  try{ await writeRailDB({stations:ALL_STATIONS,trains:ALL_TRAINS_INDEX,schedules:[...ALL_TRAIN_SCHEDULES.entries()],savedAt:Date.now()}); }
+  catch(e){ console.warn("Could not cache railway dataset in IndexedDB:",e); }
+  try{ localStorage.setItem(RAIL_CACHE_KEY, JSON.stringify({stations: ALL_STATIONS, trains: ALL_TRAINS_INDEX})); }catch(e){}
   onProgress?.("Done");
-  return { stations: ALL_STATIONS.length, trains: ALL_TRAINS_INDEX.length, scheduleStops: [...ALL_TRAIN_SCHEDULES.values()].reduce((n,a)=>n+a.length,0) };
+  return result;
+  })();
+  try{return await railLoadPromise;}finally{railLoadPromise=null;}
 }
 
 function searchAllTrains(query, limit=25){
