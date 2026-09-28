@@ -5,7 +5,7 @@
 
 // RailRadar API calls go through the Vercel serverless proxy so the API key
 // remains server-side in RAILRADAR_API_KEY and is never exposed in browser storage.
-function hasLiveData(){ return true; }
+function hasLiveData(){ return typeof fetch === "function" && typeof URLSearchParams === "function"; }
 
 async function railRadarGet(params = {}) {
   const query = new URLSearchParams();
