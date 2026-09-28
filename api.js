@@ -38,10 +38,18 @@ async function railRadarGet(params = {}) {
   return body;
 }
 
+const liveStatusCache = new Map();
+const LIVE_STATUS_TTL_MS = 75000;
+
 const GoRailAPI = {
   hasLiveData,
-  liveStatus(trainNo, _startDay = "1", date) {
-    return railRadarGet({ action: "live", number: trainNo, date });
+  async liveStatus(trainNo, _startDay = "1", date) {
+    const key = String(trainNo || "") + "|" + String(date || "");
+    const hit = liveStatusCache.get(key);
+    if (hit && Date.now() - hit.at < LIVE_STATUS_TTL_MS) return hit.body;
+    const body = await railRadarGet({ action: "live", number: trainNo, date });
+    liveStatusCache.set(key, { at: Date.now(), body });
+    return body;
   },
   trainRoute(trainNo) {
     return railRadarGet({ action: "route", number: trainNo });

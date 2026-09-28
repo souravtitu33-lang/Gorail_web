@@ -8,10 +8,10 @@ This website is a browser-based implementation of the main logic and screens fou
 - Train enquiry/search
 - Class-wise seat availability
 - Fare enquiry
-- Passenger details + booking flow
-- PNR generation and PNR status
-- Ticket view + QR code
-- Ticket cancellation/refund state
+- Passenger details + saved enquiry (not an IRCTC reservation)
+- Live PNR status through RailRadar
+- Enquiry view + QR code for the device reference
+- Remove a saved enquiry
 - Live train status
 - Station information
 - Route/operational information
@@ -25,14 +25,10 @@ This website is a browser-based implementation of the main logic and screens fou
 - Admin train add/edit/delete
 - Browser localStorage persistence
 
-## Demo accounts
-Passenger:
-- Email: passenger@gorail.app
-- Password: 123456
+## Accounts
+Sign in with a verified Gmail address through Firebase Authentication. Admin screens open only when the Firebase ID token has `admin: true` or `role: "admin"`. Set that custom claim in the Firebase Admin SDK. A passenger token cannot grant itself admin.
 
-Admin:
-- Email: admin@gorail.app
-- Password: admin123
+Saved enquiries, food lists, complaints, and notices stay in this browser until a server store is connected. They are labeled **Saved on this device**.
 
 ## Run
 1. Extract the ZIP.
