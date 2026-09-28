@@ -524,16 +524,22 @@ function trainModal(id){let t=id?state.trains.find(x=>x.id===id):{number:"",name
 function saveTrain(id){if(!requireAdmin())return;let o={id:id||Date.now().toString(),number:$("#t_number").value,name:$("#t_name").value,from:$("#t_from").value,to:$("#t_to").value,dep:$("#t_dep").value,arr:$("#t_arr").value,duration:$("#t_duration").value,fare:+$("#t_fare").value,seats:+$("#t_seats").value,platform:$("#t_platform").value,status:$("#t_status").value,classes:["1A","2A","3A","SL"]};if(!o.number||!o.name||!o.from||!o.to)return toast("Fill train details.");let i=state.trains.findIndex(x=>x.id===id);if(i>=0)state.trains[i]=o;else state.trains.push(o);save();closeModal();render()}
 function deleteTrain(id){if(!requireAdmin())return;if(!confirm("Delete this train?"))return;state.trains=state.trains.filter(t=>t.id!==id);save();render()}
 function sendBroadcast(){if(!requireAdmin())return;let m=$("#broadcastText").value.trim();if(!m)return toast("Enter a notice.");state.broadcasts.push({id:"br"+Date.now(),message:m,date:new Date().toLocaleDateString("en-IN")});state.notifications.push({id:"bn"+Date.now(),title:"Railway Notice",body:m,date:new Date().toLocaleDateString("en-IN")});save();toast("Notice broadcasted.");render()}
+let autoRailLoadPromise=null;
 async function autoLoadRailDataset(){
  if(railDatasetLoaded()) return true;
- try{
-  await loadAllIndiaRailData();
-  if(page==="search"||page==="map") render();
-  return true;
- }catch(e){
-  console.warn("Automatic railway dataset load failed:",e);
-  return false;
- }
+ if(autoRailLoadPromise) return autoRailLoadPromise;
+ autoRailLoadPromise=(async()=>{
+  try{
+   const result=await loadAllIndiaRailData();
+   if(page==="search"||page==="map") render();
+   if(result?.cached) console.info("Restored the complete railway dataset from this browser.");
+   return true;
+  }catch(e){
+   console.warn("Automatic railway dataset load failed:",e);
+   return false;
+  }
+ })();
+ try{return await autoRailLoadPromise;}finally{autoRailLoadPromise=null;}
 }
 function resetSearch(){searchResults=[];goto("search")}
 async function searchTrains(){
