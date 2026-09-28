@@ -21,10 +21,16 @@ export default async function handler(req, res) {
 
   if (action === "live") {
     if (!trainNumber(number)) return res.status(400).json({ error: "Enter a valid 5-digit train number." });
-    path = `/v1/trains/${encodeURIComponent(number)}/live`;
-    if (req.query?.date && /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date))) {
-      path += `?date=${encodeURIComponent(req.query.date)}`;
+    const query = new URLSearchParams();
+    if (req.query?.date && /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date))) query.set("date", String(req.query.date));
+    // Forward only allow-listed live geometry options.
+    for (const name of ["authoritative", "geometry", "includeCoordinates"]) {
+      const value = req.query?.[name];
+      if (value === "true" || value === "false") query.set(name, value);
     }
+    const format = String(req.query?.format || "").toLowerCase();
+    if (["polyline", "geojson", "coordinates"].includes(format)) query.set("format", format);
+    path = `/v1/trains/${encodeURIComponent(number)}/live${query.size ? "?" + query.toString() : ""}`;
   } else if (action === "route") {
     if (!trainNumber(number)) return res.status(400).json({ error: "Enter a valid 5-digit train number." });
     path = `/v1/trains/${encodeURIComponent(number)}/route?format=coordinates&stops=true`;
