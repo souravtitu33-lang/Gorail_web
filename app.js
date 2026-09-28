@@ -279,9 +279,13 @@ async function trackTrainOnMap(){
   number=real.number;name=real.name;fromName=real.from_name||"";toName=real.to_name||"";
   distance=real.distance;durH=real.duration_h;durM=real.duration_m;dep=real.departure||"00:00";classes=real.classes||[];
   route=getTrainRoute(real.number);
-  if(!route&&typeof loadAllIndiaRailData==="function"&&!ALL_TRAINS_GEOJSON){
-   info.innerHTML=`<div class="card">Loading route geometry…</div>`;
-   try{await Promise.race([loadAllIndiaRailData(()=>{}),new Promise((_,reject)=>setTimeout(()=>reject(new Error("Route data loading timed out")),20000))]);route=getTrainRoute(real.number)}catch(e){console.warn("GoRail route data:",e)}
+  if(!route){
+   try{
+    const rr=await GoRailAPI.trainRoute(real.number),rd=rr&&(rr.data||rr);
+    const raw=rd&&(rd.coordinates||(rd.geojson&&rd.geojson.geometry&&rd.geojson.geometry.coordinates)||(rd.geometry&&rd.geometry.coordinates));
+    if(Array.isArray(raw)&&raw.length>1)route=raw.map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));
+    if((!route||route.length<2)&&Array.isArray(rd&&rd.stops))route=rd.stops.filter(s=>Number.isFinite(Number(s.lat))&&Number.isFinite(Number(s.lng??s.lon))).map(s=>[Number(s.lng??s.lon),Number(s.lat)]);
+   }catch(e){console.warn("RailRadar route lookup:",e)}
   }
  }else{
   number=demo.number;name=demo.name;fromName=demo.from;toName=demo.to;dep=demo.dep||"00:00";classes=demo.classes||[];
