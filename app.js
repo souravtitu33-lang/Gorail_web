@@ -24,6 +24,7 @@ let state=seed;
 try{ const saved=localStorage.getItem(KEY); if(saved) state=JSON.parse(saved)||seed; }catch(e){ state=seed; try{localStorage.removeItem(KEY)}catch(_e){} }
 let session=null; // Firebase Auth is the source of truth; never restore a local-only login.
 let page="dashboard", modal=null, searchResults=[];
+let mapRefreshTimer=null;
 loadCachedIndex();
 function save(){localStorage.setItem(KEY,JSON.stringify(state));localStorage.setItem("gorail_session",JSON.stringify(session))}
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
@@ -313,6 +314,13 @@ async function trackTrainOnMap(){
   if(liveResult.error)throw liveResult.error;
   const r=liveResult.value,d=r?.data||r;
   liveData=d;
+  // RailRadar can return authoritative route geometry with the live response.
+  // Prefer that geometry so the map follows the actual railway path instead of a straight line.
+  const liveGeo=d?.geometry?.coordinates || d?.routeGeometry?.coordinates || d?.geometry || d?.routeGeometry;
+  if(Array.isArray(liveGeo)&&liveGeo.length>1&&Array.isArray(liveGeo[0])){
+   const candidate=liveGeo.map(p=>Array.isArray(p)?[Number(p[0]),Number(p[1])]:null).filter(p=>p&&Number.isFinite(p[0])&&Number.isFinite(p[1]));
+   if(candidate.length>1) route=candidate;
+  }
   if(d?.trainName||d?.train?.name) name=d.trainName||d.train.name;
   if(d?.train?.source?.name) fromName=d.train.source.name;
   if(d?.train?.destination?.name) toName=d.train.destination.name;
@@ -516,6 +524,17 @@ function trainModal(id){let t=id?state.trains.find(x=>x.id===id):{number:"",name
 function saveTrain(id){if(!requireAdmin())return;let o={id:id||Date.now().toString(),number:$("#t_number").value,name:$("#t_name").value,from:$("#t_from").value,to:$("#t_to").value,dep:$("#t_dep").value,arr:$("#t_arr").value,duration:$("#t_duration").value,fare:+$("#t_fare").value,seats:+$("#t_seats").value,platform:$("#t_platform").value,status:$("#t_status").value,classes:["1A","2A","3A","SL"]};if(!o.number||!o.name||!o.from||!o.to)return toast("Fill train details.");let i=state.trains.findIndex(x=>x.id===id);if(i>=0)state.trains[i]=o;else state.trains.push(o);save();closeModal();render()}
 function deleteTrain(id){if(!requireAdmin())return;if(!confirm("Delete this train?"))return;state.trains=state.trains.filter(t=>t.id!==id);save();render()}
 function sendBroadcast(){if(!requireAdmin())return;let m=$("#broadcastText").value.trim();if(!m)return toast("Enter a notice.");state.broadcasts.push({id:"br"+Date.now(),message:m,date:new Date().toLocaleDateString("en-IN")});state.notifications.push({id:"bn"+Date.now(),title:"Railway Notice",body:m,date:new Date().toLocaleDateString("en-IN")});save();toast("Notice broadcasted.");render()}
+async function autoLoadRailDataset(){
+ if(railDatasetLoaded()) return true;
+ try{
+  await loadAllIndiaRailData();
+  if(page==="search"||page==="map") render();
+  return true;
+ }catch(e){
+  console.warn("Automatic railway dataset load failed:",e);
+  return false;
+ }
+}
 function resetSearch(){searchResults=[];goto("search")}
 async function searchTrains(){
  let f=$("#sfrom").value.trim(), to=$("#sto").value.trim(), cl=$("#sclass").value;
@@ -562,4 +581,10 @@ goRailAuth.onAuthStateChanged(async user=>{
  save();render();
 });
 render();drawModal();
+// Automatically load the complete timetable after a verified passenger/admin session.
+// Cached data is reused when available; otherwise the deployed Vercel app downloads and indexes it.
+setTimeout(()=>{ if(session) autoLoadRailDataset(); },1200);
+// Refresh live train position every 60 seconds while the Live Map page is open.
+clearInterval(mapRefreshTimer);
+mapRefreshTimer=setInterval(()=>{ if(session && page==="map" && $("#mapTrainQuery")?.value?.trim()) trackTrainOnMap(); },60000);
 setInterval(()=>{const {ac,nonAc}=tatkalCountdown();const a=$("#tatkalAc"),n=$("#tatkalNonAc");if(a)a.textContent=ac;if(n)n.textContent=nonAc;},1000);
