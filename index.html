@@ -16,6 +16,21 @@
 <script src="api.js"></script>
 <script src="railway-data.js"></script>
 <script src="map.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDRNtsi7edgc2IPGlsOC57pFt5CJ2I_SE0",
+    authDomain: "go-rail-3966f.firebaseapp.com",
+    projectId: "go-rail-3966f",
+    storageBucket: "go-rail-3966f.firebasestorage.app",
+    messagingSenderId: "874472316351",
+    appId: "1:874472316351:web:fe9281cf432dcb4733950a",
+    measurementId: "G-N4294RS2L5"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const goRailAuth = firebase.auth();
+</script>
 <script src="app.js"></script>
 </body>
 </html>
