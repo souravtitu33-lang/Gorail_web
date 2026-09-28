@@ -285,6 +285,7 @@ async function trackTrainOnMap(){
   route=fS&&tS?[[fS.lon,fS.lat],[tS.lon,tS.lat]]:null;
   const dm=(demo.duration||"").match(/(\d+)h\s*(\d+)?/);durH=dm?+dm[1]:0;durM=dm&&dm[2]?+dm[2]:0;
  }
+ const livePromise=GoRailAPI.liveStatus(number,"1",date||undefined).then(value=>({value})).catch(error=>({error}));
  if(!route){
   try{
    const rr=await GoRailAPI.trainRoute(number);
@@ -298,7 +299,9 @@ async function trackTrainOnMap(){
  }
  let posLabel="Estimated position (based on timetable)",trainPoint=null,liveData=null;
  try{
-  const r=await GoRailAPI.liveStatus(number),d=r?.data||r;
+  const liveResult=await livePromise;
+  if(liveResult.error)throw liveResult.error;
+  const r=liveResult.value,d=r?.data||r;
   liveData=d;
   const pos=d?.currentLocation||d?.current_position||d?.currentPosition||{};
   const stCode=pos.stationCode||pos.station_code||d?.current_station_code||d?.current_station||d?.station_code||d?.last_station_code;
