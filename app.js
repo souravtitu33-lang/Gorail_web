@@ -184,7 +184,7 @@ async function showRealTrainLive(number){
     const lon=pos.longitude??pos.lng??pos.lon??d?.longitude??d?.lng;
     if(host) host.innerHTML="<span class=\"pill ok\">● LIVE</span> <b>"+esc(String(station))+"</b> · "+esc(String(status))+(delay? " · "+esc(String(delay))+" min delay":"")+(nextName?" · Next: "+esc(String(nextName)):"")+(lat!=null&&lon!=null?" · "+Number(lat).toFixed(4)+", "+Number(lon).toFixed(4):"");
   }catch(e){
-    if(host) host.innerHTML="<span class=\"pill warn\">Live status unavailable</span> <span class=\"muted\">Check your RapidAPI key/API quota.</span>";
+    if(host) host.innerHTML="<span class=\"pill warn\">Live status unavailable</span> <span class=\"muted\">Check the RailRadar API key, quota, and train number.</span>";
   }
 }
 function trainResult(t){
@@ -368,7 +368,7 @@ function cancelBooking(id){if(!confirm("Cancel this ticket?"))return;let b=state
 async function checkPnr(){
  let x=$("#pnrInput").value.trim(),out=$("#pnrOut"),b=state.bookings.find(b=>b.pnr===x);
  if(b){out.innerHTML=bookingCard(b);return}
- if(!hasLiveData()){out.innerHTML=`<div class="notice warn">PNR not found in this demo database. Connect a RapidAPI key in Settings to check real PNRs.</div>`;return}
+ if(!/^\\d{10}$/.test(x)){out.innerHTML=`<div class="notice warn">Enter a valid 10-digit PNR number.</div>`;return}
  out.innerHTML=`<div class="card">Looking up live PNR…</div>`;
  try{
   const r=await GoRailAPI.pnrStatus(x);const d=r?.data||r;
