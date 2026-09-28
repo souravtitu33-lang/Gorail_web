@@ -579,6 +579,7 @@ goRailAuth.onAuthStateChanged(async user=>{
  }catch(_e){}
  session={id:user.uid,name:savedUser.name||user.displayName||email.split("@")[0],email,phone:savedUser.phone||"",role};
  save();render();
+ setTimeout(()=>autoLoadRailDataset(),600);
 });
 render();drawModal();
 // Automatically load the complete timetable after a verified passenger/admin session.
