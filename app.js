@@ -32,7 +32,7 @@ function toast(msg,type="info"){let r=$("#toastRoot");if(!r){r=document.createEl
  let t=document.createElement("div");t.className="toast "+(type==="success"?"success":type==="warn"?"warn":"");t.textContent=msg;r.appendChild(t);setTimeout(()=>t.remove(),3800)}
 function toggleTheme(){let cur=document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",cur);localStorage.setItem("gorail_theme",cur);render()}
 function liveBadge(){return `<span class="live-badge" title="RailRadar live API via secure server-side proxy"><span class="dot"></span>RAILRADAR API</span>`}
-function settingsModal(){let k=getApiKey(),gk=getGMapsKey();modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>⚙️ Live Data Settings</h2><button class="close" onclick="closeModal()">×</button></div>
+function settingsModal(){let gk=getGMapsKey();modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>⚙️ Live Data Settings</h2><button class="close" onclick="closeModal()">×</button></div>
  <p class="muted">GoRail uses RailRadar for live train status, PNR enquiry, and seat availability/vacancy through a secure server-side proxy. Add your API key as <b>RAILRADAR_API_KEY</b> in your Vercel project Environment Variables. Never place the key in this public repository or browser storage. Live features require an active RailRadar plan and API quota.</p>
 
 
@@ -61,8 +61,6 @@ async function loadFullDataset(){
   toast("Dataset download failed — check your connection.","warn");
  }
 }
-function saveApiKey(){setApiKey($("#apiKeyInput").value);closeModal();toast(hasLiveData()?"Live data connected.":"Key cleared — using demo data.","success");render()}
-function clearApiKey(){setApiKey("");closeModal();toast("Live data disconnected — using demo data.");render()}
 function navItems(admin=false){
  return admin?[
   ["dashboard","📊","Dashboard"],["manage-trains","🚆","Manage Trains"],["complaints","🛠️","Complaints"],["broadcast","📢","Broadcast Notice"]
@@ -210,7 +208,7 @@ function bookingsPage(){
 function bookingCard(b){let t=state.trains.find(x=>x.id===b.trainId)||b.train;return `<div class="ticket" style="margin-bottom:15px"><div class="ticket-head"><div><b>${t.number} · ${esc(t.name)}</b><div class="muted">${esc(t.from)} → ${esc(t.to)}</div></div><span class="pill ${b.status==="Confirmed"?"ok":"red"}">${b.status}</span></div><div class="ticket-body"><div class="ticket-grid"><div><div class="label">PNR</div><div class="value">${b.pnr}</div></div><div><div class="label">Passenger</div><div class="value">${esc(b.passenger.name)}</div></div><div><div class="label">Class</div><div class="value">${b.className}</div></div><div><div class="label">Fare</div><div class="value">₹${b.fare}</div></div></div><div class="actions" style="margin-top:16px"><button class="btn small" onclick="ticketDetail('${b.id}')">View Ticket</button>${b.status==="Confirmed"?`<button class="btn danger small" onclick="cancelBooking('${b.id}')">Cancel Ticket</button>`:""}</div></div></div>`}
 function pnrPage(){return pageTitle("PNR Status","Check the current status of a booking",liveBadge())
  +`<div class="card"><div class="field"><label>PNR Number</label><input id="pnrInput" placeholder="Enter 10 digit PNR"></div><button class="btn primary" style="margin-top:12px" onclick="checkPnr()">Check PNR</button><div id="pnrOut" style="margin-top:18px"></div>
- <p class="muted" style="margin-top:10px">${hasLiveData()?"Real PNRs from actual bookings are looked up live via RapidAPI; demo PNRs generated inside this app are matched locally.":"Connect a RapidAPI key in Settings to also look up real IRCTC PNR numbers."}</p></div>`}
+ <p class="muted" style="margin-top:10px">${hasLiveData()?"Real PNRs are looked up through the secure RailRadar API; demo PNRs generated inside this app are matched locally.":"Real IRCTC PNR lookup uses the secure RailRadar API configured on the server."}</p></div>`}
 function livePage(){return pageTitle("Live Status","Current operational status of your selected train",liveBadge())
  +`<div class="card"><div class="field"><label>Train</label><select id="liveTrain">${state.trains.map(t=>`<option value="${t.id}">${t.number} · ${esc(t.name)}</option>`).join("")}</select></div>
  ${hasLiveData()?`<div class="field" style="margin-top:12px"><label>Or enter any real train number</label><input id="liveTrainNo" placeholder="e.g. 12951"></div>`:""}
