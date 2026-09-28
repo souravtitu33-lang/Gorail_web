@@ -45,7 +45,13 @@ function loadLeaflet(){
  * trainPoint: {lat,lon} current (estimated or live) position.
  * stationStops: [{lat,lon,name}] a few stops to mark along the route.
  */
+let _mapRenderVersion = 0;
 async function renderTrainMap(elId, { routeCoords, trainPoint, stationStops = [], trainLabel = "Train" }) {
+  const renderVersion = ++_mapRenderVersion;
+  const validPoint = p => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lon)) && Math.abs(Number(p.lat)) <= 90 && Math.abs(Number(p.lon)) <= 180;
+  routeCoords = Array.isArray(routeCoords) ? routeCoords.filter(c => Array.isArray(c) && c.length >= 2 && Number.isFinite(Number(c[0])) && Number.isFinite(Number(c[1])) && Math.abs(Number(c[1])) <= 90 && Math.abs(Number(c[0])) <= 180) : [];
+  trainPoint = validPoint(trainPoint) ? {lat:Number(trainPoint.lat),lon:Number(trainPoint.lon)} : null;
+  stationStops = stationStops.filter(validPoint);
   const useGoogle = hasGoogleMaps();
   const el = document.getElementById(elId);
   if (!el) return;
@@ -54,6 +60,7 @@ async function renderTrainMap(elId, { routeCoords, trainPoint, stationStops = []
   if (useGoogle) {
     try {
       await loadGoogleMapsScript();
+      if (renderVersion !== _mapRenderVersion || !document.getElementById(elId)) return;
       el.innerHTML = "";
       const center = trainPoint || (routeCoords && { lat: routeCoords[0][1], lon: routeCoords[0][0] }) || { lat: 22.9, lon: 79 };
       const map = new google.maps.Map(el, { center: { lat: center.lat, lng: center.lon }, zoom: 6 });
@@ -77,6 +84,7 @@ async function renderTrainMap(elId, { routeCoords, trainPoint, stationStops = []
   }
 
   await loadLeaflet();
+  if (renderVersion !== _mapRenderVersion || !document.getElementById(elId)) return;
   el.innerHTML = "";
   const center = trainPoint || (routeCoords && { lat: routeCoords[0][1], lon: routeCoords[0][0] }) || { lat: 22.9, lon: 79 };
   const map = L.map(el).setView([center.lat, center.lon], 6);
