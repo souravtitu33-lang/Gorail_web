@@ -1,25 +1,10 @@
-/* ============================================================
-   GoRail live-data layer
-   ------------------------------------------------------------
-   Two tiers of "live":
-   1) FREE, NO KEY — real-time weather at any station via the
-      public Open-Meteo API. No signup needed, works out of the box.
-   2) OPTIONAL, KEY REQUIRED — real Indian Railways data (live
-      running status, PNR status, seat availability, fare) via the
-      "irctc1" API on RapidAPI, the same provider used by most
-      open-source Indian-Railways tools. Paste a personal RapidAPI
-      key in Settings (gear icon, top bar) to switch this on.
-      Without a key, GoRail falls back to clearly-labelled demo data
-      so the app still works end to end.
-   NOTE: third-party API paths occasionally change on the provider's
-   side — if a call fails, GoRail surfaces the error and falls back
-   to demo data rather than breaking the page.
-   ============================================================ */
+/* GoRail live-data layer.
+   RailRadar requests use the secure Vercel serverless proxy.
+   Weather is provided by the public Open-Meteo API and requires no key.
+*/
 
 // RailRadar API calls go through the Vercel serverless proxy so the API key
 // remains server-side in RAILRADAR_API_KEY and is never exposed in browser storage.
-function getApiKey(){ return ""; }
-function setApiKey(_k){}
 function hasLiveData(){ return true; }
 
 async function railRadarGet(params = {}) {
@@ -55,8 +40,6 @@ async function railRadarGet(params = {}) {
 
 const GoRailAPI = {
   hasLiveData,
-  getApiKey,
-  setApiKey,
   liveStatus(trainNo, _startDay = "1") {
     return railRadarGet({ action: "live", number: trainNo });
   },
