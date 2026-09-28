@@ -100,7 +100,7 @@ function loginView(){return `<div class="login-wrap"><div class="login">
  <div class="field" style="grid-column:1/-1"><label>Password</label><input id="lpass" type="password" placeholder="Enter your password" autocomplete="current-password"></div></div>
  <button class="btn primary" style="width:100%;margin-top:16px" onclick="login()">Login</button>
  <button class="btn" style="width:100%;margin-top:10px" onclick="registerModal()">Create passenger account</button>
- <div class="notice" style="margin-top:16px">Use your registered email and password. New users must create an account with a strong password.</div>
+ <div class="notice" style="margin-top:16px">Use your registered email and password. New users must create an account with a password of at least 8 characters.</div>
  </div></div>`}
 function pageTitle(title,sub,actions=""){return `<div class="page-title"><div><h1>${title}</h1><div class="muted">${sub||""}</div></div><div class="actions">${actions}</div></div>`}
 function renderPage(){
@@ -321,7 +321,7 @@ async function trackTrainOnMap(){
 function ticketMini(b){let t=state.trains.find(x=>x.id===b.trainId)||b.train;return `<div style="margin-top:12px"><b>${t.number} · ${esc(t.name)}</b><p class="muted">${t.from} → ${t.to}<br>PNR ${b.pnr}</p></div>`}
 function goto(p){page=p;searchResults=[];render();window.scrollTo({top:0,behavior:"smooth"});if(p==="stations")setTimeout(loadStationsWeather,10)}
 function isValidEmail(email){return /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim())}
-function isStrongPassword(pass){return pass.length>=12 && /[a-z]/.test(pass) && /[A-Z]/.test(pass) && /\\d/.test(pass) && /[^A-Za-z0-9]/.test(pass)}
+function isStrongPassword(pass){return pass.length>=8}
 async function login(){let email=$("#lemail").value.trim().toLowerCase(),pass=$("#lpass").value;
  if(!isValidEmail(email)){toast("Enter a valid Gmail address ending in @gmail.com.","warn");return}
  if(!pass){toast("Enter your password.","warn");return}
@@ -343,7 +343,7 @@ function registerModal(){modal=`<div class="modal-backdrop"><div class="modal"><
 async function register(){let name=$("#rname").value.trim(),email=$("#remail").value.trim().toLowerCase(),pass=$("#rpass").value,phone=$("#rphone").value.trim();
  if(!name||!email||!pass){toast("Please fill required fields.","warn");return}
  if(!isValidEmail(email)){toast("Enter a valid Gmail address ending in @gmail.com.","warn");return}
- if(!isStrongPassword(pass)){toast("Use a strong password: at least 12 characters with uppercase, lowercase, number, and special character.","warn");return}
+ if(!isStrongPassword(pass)){toast("Password must be at least 8 characters long.","warn");return}
  try{
   const cred=await goRailAuth.createUserWithEmailAndPassword(email,pass);
   await cred.user.updateProfile({displayName:name});
