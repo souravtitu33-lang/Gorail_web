@@ -16,71 +16,59 @@
    to demo data rather than breaking the page.
    ============================================================ */
 
-const RAPIDAPI_HOST = "irctc1.p.rapidapi.com";
-const RAPIDAPI_KEY_STORAGE = "gorail_rapidapi_key";
+// RailRadar API calls go through the Vercel serverless proxy so the API key
+// remains server-side in RAILRADAR_API_KEY and is never exposed in browser storage.
+function getApiKey(){ return ""; }
+function setApiKey(_k){}
+function hasLiveData(){ return true; }
 
-function getApiKey(){ return (localStorage.getItem(RAPIDAPI_KEY_STORAGE) || "").trim(); }
-function setApiKey(k){ localStorage.setItem(RAPIDAPI_KEY_STORAGE, (k||"").trim()); }
-function hasLiveData(){ return getApiKey().length > 0; }
-
-async function rapidGet(path, params = {}) {
-  const key = getApiKey();
-  if (!key) { const e = new Error("NO_KEY"); e.code = "NO_KEY"; throw e; }
-  const url = new URL(`https://${RAPIDAPI_HOST}${path}`);
-  Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, v); });
-  let res;
-  try {
-    res = await fetch(url.toString(), {
-      headers: { "x-rapidapi-key": key, "x-rapidapi-host": RAPIDAPI_HOST }
-    });
-  } catch (err) {
-    const e = new Error("NETWORK_ERROR"); e.code = "NETWORK_ERROR"; throw e;
+async function railRadarGet(params = {}) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([k,v]) => {
+    if (v !== undefined && v !== null && String(v).trim() !== "") query.set(k, String(v).trim());
+  });
+  const response = await fetch("/api/railradar?" + query.toString(), {
+    headers: { "Accept": "application/json" },
+    cache: "no-store"
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body?.success === false) {
+    const message = body?.error?.message || body?.error || "RailRadar request failed (" + response.status + ")";
+    const error = new Error(typeof message === "string" ? message : JSON.stringify(message));
+    error.code = body?.error?.code || "RAILRADAR_ERROR";
+    error.status = response.status;
+    throw error;
   }
-  if (!res.ok) { const e = new Error("API_ERROR_" + res.status); e.code = "API_ERROR"; e.status = res.status; throw e; }
-  return res.json();
+  return body;
 }
 
 const GoRailAPI = {
   hasLiveData,
   getApiKey,
   setApiKey,
-
-  // RailRadar live running status. The key is kept server-side in RAILRADAR_API_KEY.
-  liveStatus(trainNo, startDay = "1") {
-    const number = String(trainNo || "").trim();
-    if (!/^\d{5}$/.test(number)) {
-      const e = new Error("INVALID_TRAIN_NUMBER"); e.code = "INVALID_TRAIN_NUMBER"; throw e;
-    }
-    return fetch("/api/railradar?number=" + encodeURIComponent(number), {
-      headers: { "Accept": "application/json" }
-    }).then(async res => {
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const e = new Error(body?.error || "RAILRADAR_ERROR_" + res.status);
-        e.code = "RAILRADAR_ERROR"; e.status = res.status; throw e;
-      }
-      return body;
+  liveStatus(trainNo, _startDay = "1") {
+    return railRadarGet({ action: "live", number: trainNo });
+  },
+  pnrStatus(pnrNumber) {
+    return railRadarGet({ action: "pnr", pnr: pnrNumber });
+  },
+  seatAvailability({ trainNo, fromStationCode, toStationCode, classType, quota = "GN", date }) {
+    return railRadarGet({
+      action: "seats", number: trainNo, source: fromStationCode,
+      destination: toStationCode, journeyDate: date, classCode: classType, quotaCode: quota
     });
   },
-  // PNR status (real data, needs key)
-  pnrStatus(pnrNumber) {
-    return rapidGet("/api/v3/getPNRStatus", { pnrNumber });
+  seatVacancy(args) {
+    return this.seatAvailability(args);
   },
-  // Class-wise seat availability (real data, needs key)
-  seatAvailability({ trainNo, fromStationCode, toStationCode, classType, quota = "GN", date }) {
-    return rapidGet("/api/v1/checkSeatAvailability", { trainNo, fromStationCode, toStationCode, classType, quota, date });
-  },
-  // Fare enquiry (real data, needs key)
   fare({ trainNo, fromStationCode, toStationCode }) {
-    return rapidGet("/api/v1/getFare", { trainNo, fromStationCode, toStationCode });
+    return railRadarGet({ action: "fare", number: trainNo, source: fromStationCode, destination: toStationCode });
   },
-  // Trains running between two stations on a date (real data, needs key)
   trainsBetween({ fromStationCode, toStationCode, dateOfJourney }) {
-    return rapidGet("/api/v3/trainBetweenStations", { fromStationCode, toStationCode, dateOfJourney });
+    return railRadarGet({ action: "between", from: fromStationCode, to: toStationCode, date: dateOfJourney });
   },
-  // Station name/code search (real data, needs key)
   searchStation(query) {
-    return rapidGet("/api/v1/searchStation", { query });
+    return railRadarGet({ action: "station-search", query });
   }
 };
 
