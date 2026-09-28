@@ -384,26 +384,23 @@ async function checkPnr(){
 
 async function showLive(){
  let t=state.trains.find(x=>x.id===$("#liveTrain").value);
- let out=$("#liveOut");out.innerHTML=`<div class="card">Loading…</div>`;
- let liveHtml="";
- let trainNoOverride=$("#liveTrainNo")?.value?.trim();
- if(hasLiveData()){
-  try{
-   const r=await GoRailAPI.liveStatus(trainNoOverride||t.number);
-   const d=r?.data||r;
-   liveHtml=`<div class="card"><div class="actions" style="justify-content:space-between"><h3 style="margin:0">${esc(trainNoOverride||t.number)} · Live from RailRadar</h3>${liveBadge()}</div>
-    <pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;margin-top:10px">${esc(JSON.stringify(d,null,2)).slice(0,1600)}</pre></div>`;
-  }catch(e){
-   toast("Live status lookup failed ("+(e.code||e.message)+") — showing demo view.","warn");
-  }
- }
- if(!liveHtml){
-  liveHtml=`<div class="card"><div class="actions" style="justify-content:space-between"><h3 style="margin:0">${t.number} · ${esc(t.name)}</h3>${liveBadge()}</div><p>${esc(t.from)} → ${esc(t.to)}</p><span class="pill ${t.status==="On Time"?"ok":"warn"}">${t.status}</span><p class="muted">Platform ${t.platform} · ${hasLiveData()?"Demo view (real lookup failed)":"Configure RAILRADAR_API_KEY in Vercel for the real live position"}</p><div class="route-line" style="margin-top:18px">● ───── 🚆 ───── ●</div></div>`;
- }
- const [wFrom,wTo]=await Promise.all([stationWeather(t.from),stationWeather(t.to)]);
- const wchip=w=>w?`<span class="weather-chip">☁️ ${w.station.name} · ${Math.round(w.temp)}°C · ${esc(w.desc)}</span>`:"";
- liveHtml+=`<div class="card" style="margin-top:14px"><h3>🌦️ Live weather along the route</h3><div class="actions">${wchip(wFrom)}${wchip(wTo)}</div><p class="muted" style="margin-top:8px">Real-time, no API key needed (Open-Meteo).</p></div>`;
- out.innerHTML=liveHtml;
+ let out=$("#liveOut");out.innerHTML=`<div class="card">Fetching live train status…</div>`;
+ let trainNo=$("#liveTrainNo")?.value?.trim()||t?.number;
+ if(!/^\d{5}$/.test(String(trainNo||""))){out.innerHTML=`<div class="notice warn">Enter a valid 5-digit train number.</div>`;return}
+ try{
+  const r=await GoRailAPI.liveStatus(trainNo),d=r?.data||r;
+  const pos=d?.currentLocation||{},next=d?.nextHalt||{},prev=d?.previousHalt||{};
+  const status=String(d?.status||"Status unavailable").replace(/-/g," ");
+  const station=pos.stationName||pos.stationCode||"Location unavailable";
+  const delay=Number(d?.delayMinutes??0);
+  const details=(d?.route||[]).map(s=>`<tr><td>${esc(s.stationCode||"")}</td><td>${esc(s.stationName||"")}</td><td>${esc(s.status||"—")}</td><td>${esc(s.actualArrival||s.scheduledArrival||"—")}</td><td>${esc(s.actualDeparture||s.scheduledDeparture||"—")}</td><td>${s.delayArrival??s.delayDeparture??"—"}</td></tr>`).join("");
+  out.innerHTML=`<div class="card"><div class="actions" style="justify-content:space-between"><h3 style="margin:0">${esc(d?.trainName||d?.train?.name||t?.name||trainNo)} · ${esc(trainNo)}</h3><span class="pill ok">LIVE</span></div>
+   <div class="grid g3" style="margin-top:12px"><div><div class="muted">Running status</div><b>${esc(status)}</b></div><div><div class="muted">Current location</div><b>${esc(station)}</b></div><div><div class="muted">Delay</div><b>${Number.isFinite(delay)?delay+" min":"—"}</b></div></div>
+   <p style="margin-top:12px"><b>Previous halt:</b> ${esc(prev.stationName||prev.stationCode||"—")} &nbsp; <b>Next halt:</b> ${esc(next.stationName||next.stationCode||"—")}</p>
+   <p class="muted">Last updated: ${esc(d?.lastUpdatedAt||"Not provided")}</p>
+   ${details?`<h3>Live route progress</h3><div style="overflow:auto"><table class="table"><thead><tr><th>Code</th><th>Station</th><th>Status</th><th>Arrival</th><th>Departure</th><th>Delay (min)</th></tr></thead><tbody>${details}</tbody></table></div>`:""}
+  </div>`;
+ }catch(e){out.innerHTML=`<div class="notice warn">RailRadar live status failed: ${esc(e.message||e)}. Check the train number, server API key, and quota.</div>`}
 }
 async function calcFare(){
  let t=state.trains.find(x=>x.id===$("#fareTrain").value),p=Math.max(1,+$("#farePax").value||1),c=$("#fareClass").value,out=$("#fareOut");
