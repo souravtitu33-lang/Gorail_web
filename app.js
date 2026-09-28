@@ -272,7 +272,7 @@ async function trackTrainOnMap(){
  if(!q){toast("Enter a train number.");return}
  let real=railDatasetLoaded()?ALL_TRAINS_INDEX.find(t=>t.number===q)||searchAllTrains(q,1)[0]:null;
  let demo=state.trains.find(t=>t.number===q||t.id===q||t.name.toLowerCase().includes(q.toLowerCase()));
- if(!real&&!demo){info.innerHTML=`<div class="notice warn">Train not found. ${railDatasetLoaded()?"Check the number/name.":"Load the all-India dataset in Settings to search every real train."}</div>`;return}
+ if(!real&&!demo&&!/^\\d{5}$/.test(q)){info.innerHTML=`<div class="notice warn">Train not found. ${railDatasetLoaded()?"Check the number/name.":"Load the all-India dataset in Settings to search every real train."}</div>`;return}
  info.innerHTML=`<div class="card">Locating train…</div>`;
  let route=null,fromName="",toName="",distance=null,durH=0,durM=0,dep="00:00",number="",name="",classes=[];
  if(real){
@@ -288,14 +288,10 @@ async function trackTrainOnMap(){
    }catch(e){console.warn("RailRadar route lookup:",e)}
   }
  }else{
-  number=demo.number;name=demo.name;fromName=demo.from;toName=demo.to;dep=demo.dep||"00:00";classes=demo.classes||[];
-  const fS=findStation(demo.from),tS=findStation(demo.to);
+  number=demo?.number||q;name=demo?.name||number;fromName=demo?.from||"";toName=demo?.to||"";dep=demo?.dep||"00:00";classes=demo?.classes||[];
+  const fS=demo?findStation(demo.from):null,tS=demo?findStation(demo.to):null;
   route=fS&&tS?[[fS.lon,fS.lat],[tS.lon,tS.lat]]:null;
   const dm=(demo.duration||"").match(/(\d+)h\s*(\d+)?/);durH=dm?+dm[1]:0;durM=dm&&dm[2]?+dm[2]:0;
- }
- if(!route||route.length<2){
-  info.innerHTML=`<div class="notice warn">Route geometry is unavailable for this train. Load the all-India dataset in Settings and try again.</div>`;
-  return;
  }
  let posLabel="Estimated position (based on timetable)",trainPoint=null,liveData=null;
  try{
