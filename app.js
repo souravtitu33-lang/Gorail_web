@@ -22,7 +22,7 @@ const seed={
 };
 let state=seed;
 try{ const saved=localStorage.getItem(KEY); if(saved) state=JSON.parse(saved)||seed; }catch(e){ state=seed; try{localStorage.removeItem(KEY)}catch(_e){} }
-let session=JSON.parse(localStorage.getItem("gorail_session")||"null");
+let session=null; // Firebase Auth is the source of truth; never restore a local-only login.
 let page="dashboard", modal=null, searchResults=[];
 loadCachedIndex();
 function save(){localStorage.setItem(KEY,JSON.stringify(state));localStorage.setItem("gorail_session",JSON.stringify(session))}
@@ -322,20 +322,40 @@ function ticketMini(b){let t=state.trains.find(x=>x.id===b.trainId)||b.train;ret
 function goto(p){page=p;searchResults=[];render();window.scrollTo({top:0,behavior:"smooth"});if(p==="stations")setTimeout(loadStationsWeather,10)}
 function isValidEmail(email){return /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim())}
 function isStrongPassword(pass){return pass.length>=12 && /[a-z]/.test(pass) && /[A-Z]/.test(pass) && /\\d/.test(pass) && /[^A-Za-z0-9]/.test(pass)}
-function login(){let email=$("#lemail").value.trim().toLowerCase(),pass=$("#lpass").value;
+async function login(){let email=$("#lemail").value.trim().toLowerCase(),pass=$("#lpass").value;
  if(!isValidEmail(email)){toast("Enter a valid Gmail address ending in @gmail.com.","warn");return}
  if(!pass){toast("Enter your password.","warn");return}
- let u=state.users.find(x=>String(x.email).toLowerCase()===email&&x.password===pass);
- if(!u){toast("Invalid email or password. Create an account first if you are a new user.","warn");return}
- session={...u};save();goto("dashboard") }
+ try{
+  const cred=await goRailAuth.signInWithEmailAndPassword(email,pass);
+  if(!cred.user.emailVerified){
+   await cred.user.sendEmailVerification();
+   await goRailAuth.signOut();
+   toast("Please verify your email using the link sent to your Gmail before logging in.","warn");
+   return;
+  }
+  const savedUser=state.users.find(x=>String(x.email).toLowerCase()===email)||{};
+  session={id:cred.user.uid,name:savedUser.name||cred.user.displayName||email.split("@")[0],email,phone:savedUser.phone||"",role:"passenger"};
+  save();goto("dashboard");
+ }catch(e){toast(e.code==="auth/user-not-found"||e.code==="auth/wrong-password"||e.code==="auth/invalid-credential"?"Invalid Gmail or password.":e.message||"Login failed.","warn")}
+}
 function logout(){session=null;save();render()}
 function registerModal(){modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>Create Account</h2><button class="close" onclick="closeModal()">×</button></div><div class="form-grid"><div class="field"><label>Name</label><input id="rname"></div><div class="field"><label>Phone</label><input id="rphone"></div><div class="field"><label>Email</label><input id="remail"></div><div class="field"><label>Password</label><input id="rpass" type="password"></div></div><button class="btn primary" style="margin-top:15px" onclick="register()">Register</button></div></div>`;drawModal()}
-function register(){let name=$("#rname").value.trim(),email=$("#remail").value.trim().toLowerCase(),pass=$("#rpass").value,phone=$("#rphone").value.trim();
+async function register(){let name=$("#rname").value.trim(),email=$("#remail").value.trim().toLowerCase(),pass=$("#rpass").value,phone=$("#rphone").value.trim();
  if(!name||!email||!pass){toast("Please fill required fields.","warn");return}
  if(!isValidEmail(email)){toast("Enter a valid Gmail address ending in @gmail.com.","warn");return}
  if(!isStrongPassword(pass)){toast("Use a strong password: at least 12 characters with uppercase, lowercase, number, and special character.","warn");return}
- if(state.users.some(u=>String(u.email).toLowerCase()===email)){toast("Email already registered. Please log in.","warn");return}
- let u={id:"u"+Date.now(),name,email,password:pass,phone,role:"passenger"};state.users.push(u);session={...u};save();closeModal();goto("dashboard") }
+ try{
+  const cred=await goRailAuth.createUserWithEmailAndPassword(email,pass);
+  await cred.user.updateProfile({displayName:name});
+  await cred.user.sendEmailVerification();
+  state.users=state.users.filter(u=>String(u.email).toLowerCase()!==email);
+  state.users.push({id:cred.user.uid,name,email,phone,role:"passenger"});
+  save();
+  await goRailAuth.signOut();
+  closeModal();
+  toast("Account created. Verify your Gmail using the link we sent, then log in.","success");
+ }catch(e){toast(e.code==="auth/email-already-in-use"?"This Gmail is already registered. Please log in.":e.code==="auth/weak-password"?"Choose a stronger password.":e.message||"Registration failed.","warn")}
+}
 function closeModal(){modal=null;drawModal()}
 function drawModal(){let old=$("#modalRoot");if(old)old.remove();if(modal){let d=document.createElement("div");d.id="modalRoot";d.innerHTML=modal;document.body.appendChild(d)}}
 function bookTrain(id){let t=state.trains.find(x=>x.id===id);if(!t)return;modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>Passenger Details</h2><button class="close" onclick="closeModal()">×</button></div><div class="notice">${t.number} · ${esc(t.name)} · ${esc(t.from)} → ${esc(t.to)}</div><div class="form-grid" style="margin-top:15px"><div class="field"><label>Passenger Name</label><input id="bname" value="${esc(session.name)}"></div><div class="field"><label>Age</label><input id="bage" type="number" value="21"></div><div class="field"><label>Class</label><select id="bclass">${t.classes.map(c=>`<option>${c}</option>`).join("")}</select></div><div class="field"><label>Gender</label><select id="bgender"><option>Male</option><option>Female</option><option>Other</option></select></div></div><button class="btn primary" style="margin-top:15px;width:100%" onclick="confirmBooking('${t.id}')">Confirm Booking · ₹${t.fare}</button></div></div>`;drawModal()}
@@ -436,5 +456,14 @@ async function searchTrains(){
  render();
 }
 
+goRailAuth.onAuthStateChanged(async user=>{
+ if(!user){session=null;localStorage.removeItem("gorail_session");render();return}
+ if(!user.emailVerified){try{await goRailAuth.signOut()}catch(e){} session=null;render();return}
+ const email=(user.email||"").toLowerCase();
+ if(!isValidEmail(email)){try{await goRailAuth.signOut()}catch(e){} session=null;render();return}
+ const savedUser=state.users.find(x=>String(x.email).toLowerCase()===email)||{};
+ session={id:user.uid,name:savedUser.name||user.displayName||email.split("@")[0],email,phone:savedUser.phone||"",role:"passenger"};
+ save();render();
+});
 render();drawModal();
 setInterval(()=>{const {ac,nonAc}=tatkalCountdown();const a=$("#tatkalAc"),n=$("#tatkalNonAc");if(a)a.textContent=ac;if(n)n.textContent=nonAc;},1000);
