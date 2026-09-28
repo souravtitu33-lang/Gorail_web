@@ -283,7 +283,7 @@ async function trackTrainOnMap(){
   number=demo?.number||q;name=demo?.name||number;fromName=demo?.from||"";toName=demo?.to||"";dep=demo?.dep||"00:00";classes=demo?.classes||[];
   const fS=demo?findStation(demo.from):null,tS=demo?findStation(demo.to):null;
   route=fS&&tS?[[fS.lon,fS.lat],[tS.lon,tS.lat]]:null;
-  const dm=(demo.duration||"").match(/(\d+)h\s*(\d+)?/);durH=dm?+dm[1]:0;durM=dm&&dm[2]?+dm[2]:0;
+  const dm=(demo?.duration||"").match(/(\d+)h\s*(\d+)?/);durH=dm?+dm[1]:0;durM=dm&&dm[2]?+dm[2]:0;
  }
  const livePromise=GoRailAPI.liveStatus(number,"1",date||undefined).then(value=>({value})).catch(error=>({error}));
  if(!route){
