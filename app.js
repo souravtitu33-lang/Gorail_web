@@ -292,7 +292,7 @@ async function trackTrainOnMap(){
   const dm=(demo?.duration||"").match(/(\d+)h\s*(\d+)?/);durH=dm?+dm[1]:0;durM=dm&&dm[2]?+dm[2]:0;
  }
  const livePromise=GoRailAPI.liveStatus(number,"1",date||undefined).then(value=>({value})).catch(error=>({error}));
- if(!route){
+ if(!route || route.length<2){
   try{
    const rr=await GoRailAPI.trainRoute(number);
    routeData=rr&&(rr.data||rr);
@@ -300,7 +300,11 @@ async function trackTrainOnMap(){
    const coords=routeData&&routeData.coordinates;
    if(Array.isArray(geo)&&geo.length>1)route=geo.map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));
    else if(Array.isArray(coords)&&coords.length>1)route=coords.map(p=>[Number(p[1]),Number(p[0])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));
-   if((!route||route.length<2)&&Array.isArray(routeData&&routeData.stops))route=routeData.stops.filter(s=>Number.isFinite(Number(s.lat))&&Number.isFinite(Number(s.lng??s.lon))).map(s=>[Number(s.lng??s.lon),Number(s.lat)]);
+   const stopList=routeData&&(routeData.stops||routeData.stations||routeData.route);
+   if((!route||route.length<2)&&Array.isArray(stopList))route=stopList.filter(s=>Number.isFinite(Number(s.lat??s.latitude))&&Number.isFinite(Number(s.lng??s.lon??s.longitude))).map(s=>[Number(s.lng??s.lon??s.longitude),Number(s.lat??s.latitude)]);
+   const src=routeData?.train?.source, dst=routeData?.train?.destination;
+   if(src?.name) fromName=fromName||src.name;
+   if(dst?.name) toName=toName||dst.name;
   }catch(e){console.warn("RailRadar route lookup:",e)}
  }
  let posLabel="Estimated position (based on timetable)",trainPoint=null,liveData=null;
@@ -309,21 +313,25 @@ async function trackTrainOnMap(){
   if(liveResult.error)throw liveResult.error;
   const r=liveResult.value,d=r?.data||r;
   liveData=d;
+  if(d?.trainName||d?.train?.name) name=d.trainName||d.train.name;
+  if(d?.train?.source?.name) fromName=d.train.source.name;
+  if(d?.train?.destination?.name) toName=d.train.destination.name;
   const pos=d?.currentLocation||d?.current_position||d?.currentPosition||{};
   const stCode=pos.stationCode||pos.station_code||d?.current_station_code||d?.current_station||d?.station_code||d?.last_station_code;
   const stName=pos.stationName||pos.station_name||d?.current_station_name||d?.station_name;
-  const st=(stCode&&findRealStation(stCode))||(stName&&findRealStation(stName));
-  const routeStops=routeData?.stops||[];
+  const st=(stCode&&typeof findRealStation==="function"&&findRealStation(stCode))||(stName&&typeof findRealStation==="function"&&findRealStation(stName));
+  const routeStops=[...(routeData?.stops||[]), ...(Array.isArray(d?.route)?d.route:[])];
   const liveStop=routeStops.find(s=>String(s.code||s.stationCode||"").toUpperCase()===String(stCode||"").toUpperCase());
-  if(liveStop&&Number.isFinite(Number(liveStop.lat))&&Number.isFinite(Number(liveStop.lng??liveStop.lon))){
-   trainPoint={lat:Number(liveStop.lat),lon:Number(liveStop.lng??liveStop.lon)};
-   posLabel="Live position — last reported station";
+  const src=d?.train?.source, dst=d?.train?.destination;
+  const endpoint=[src,dst].find(s=>s && String(s.code||"").toUpperCase()===String(stCode||"").toUpperCase());
+  const lat=pos.latitude??pos.lat??liveStop?.lat??liveStop?.latitude??endpoint?.lat??endpoint?.latitude;
+  const lon=pos.longitude??pos.lng??pos.lon??liveStop?.lng??liveStop?.lon??liveStop?.longitude??endpoint?.lng??endpoint?.lon??endpoint?.longitude;
+  if(lat!=null&&lon!=null&&Number.isFinite(Number(lat))&&Number.isFinite(Number(lon))){
+   trainPoint={lat:Number(lat),lon:Number(lon)};
+   posLabel="Live position — "+(stName||stCode||"last reported station");
   }else if(st&&Number.isFinite(Number(st.lat))&&Number.isFinite(Number(st.lon))){
    trainPoint={lat:Number(st.lat),lon:Number(st.lon)};
-   posLabel="Live position — last reported station";
-  }else if(pos.latitude!=null&&pos.longitude!=null){
-   trainPoint={lat:Number(pos.latitude),lon:Number(pos.longitude)};
-   posLabel="Live GPS position";
+   posLabel="Live position — "+(stName||stCode||"last reported station");
   }
  }catch(e){console.warn("GoRail live position unavailable:",e)}
  if(!trainPoint) posLabel="Timetable route only. Live position was not returned.";
@@ -342,7 +350,7 @@ async function trackTrainOnMap(){
  <p>${esc(fromName)} → ${esc(toName)}${distance?` · ${distance} km`:""} · ${durH||0}h ${durM||0}m</p>
  ${classes.length?`<div class="actions">${classes.map(c=>`<span class="pill">${esc(c)}</span>`).join("")}</div>`:""}
  <p class="muted" style="margin-top:8px">${esc(posLabel)}${liveData?.lastUpdatedAt?` · Updated ${esc(liveData.lastUpdatedAt)}`:""}</p>
- ${!live?`<p class="muted">Live tracking was unavailable; this marker is an estimate, not the train's confirmed location.</p>`:""}
+ ${!live?`<p class="muted">The line is the timetable route. A train marker appears only when RailRadar returns a live position.</p>`:""}
  </div>`;
 }
 function ticketMini(b){let t=state.trains.find(x=>x.id===b.trainId)||b.train||{};return `<div style="margin-top:12px"><b>${esc(t.number)} · ${esc(t.name)}</b><p class="muted">${esc(t.from)} → ${esc(t.to)}<br>${esc(b.ref||b.pnr)} · saved on this device</p></div>`}
