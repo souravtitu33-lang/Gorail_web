@@ -31,12 +31,12 @@ function icon(x){return `<span>${x}</span>`}
 function toast(msg,type="info"){let r=$("#toastRoot");if(!r){r=document.createElement("div");r.id="toastRoot";r.className="toast-stack";document.body.appendChild(r)}
  let t=document.createElement("div");t.className="toast "+(type==="success"?"success":type==="warn"?"warn":"");t.textContent=msg;r.appendChild(t);setTimeout(()=>t.remove(),3800)}
 function toggleTheme(){let cur=document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",cur);localStorage.setItem("gorail_theme",cur);render()}
-function liveBadge(){let on=hasLiveData();return `<span class="live-badge ${on?"":"off"}" title="${on?"Connected to live Indian Railways data (RapidAPI)":"Running on demo data — add a RapidAPI key in Settings for real live data"}"><span class="dot"></span>${on?"LIVE DATA":"DEMO DATA"}</span>`}
+function liveBadge(){return `<span class="live-badge" title="RailRadar live API via secure server-side proxy"><span class="dot"></span>RAILRADAR API</span>`}
 function settingsModal(){let k=getApiKey(),gk=getGMapsKey();modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>⚙️ Live Data Settings</h2><button class="close" onclick="closeModal()">×</button></div>
- <p class="muted">GoRail uses RailRadar for live train running status through a secure server-side proxy. Add your RailRadar API key as <b>RAILRADAR_API_KEY</b> in your Vercel project's Environment Variables. The key must not be placed in this public repository or browser storage. The RapidAPI key field below remains for legacy PNR, seat and fare features.</p>
- <div class="field" style="margin-top:14px"><label>RapidAPI Key</label><input id="apiKeyInput" placeholder="paste your RapidAPI key" value="${esc(k)}"></div>
- <div class="actions" style="margin-top:14px"><button class="btn primary" onclick="saveApiKey()">Save Key</button>${k?`<button class="btn danger" onclick="clearApiKey()">Remove Key</button>`:""}</div>
- <div class="notice" style="margin-top:16px">Don't have a key? Get a free-tier key at <b>rapidapi.com</b> (search "irctc1"). Without a key, GoRail keeps working with clearly-labelled demo data — nothing breaks.<br><br>✅ Live station weather works with <b>no key at all</b> (free public Open-Meteo API), and already appears on Live Status and Station Info.</div>
+ <p class="muted">GoRail uses RailRadar for live train status, PNR enquiry, and seat availability/vacancy through a secure server-side proxy. Add your API key as <b>RAILRADAR_API_KEY</b> in your Vercel project Environment Variables. Never place the key in this public repository or browser storage. Live features require an active RailRadar plan and API quota.</p>
+
+
+ <div class="notice" style="margin-top:16px">Live train status, PNR, and seat vacancy require the server-side RailRadar key. Live station weather works with <b>no key</b> through the free Open-Meteo API.</div>
  <hr style="margin:20px 0;border:none;border-top:1px solid var(--line)">
  <h3>🗺️ Google Maps</h3>
  <p class="muted">Add a Google Maps JavaScript API key to use real Google Maps on the Live Map page. Without one, GoRail automatically uses free OpenStreetMap maps instead — the map always works either way.</p>
@@ -391,14 +391,14 @@ async function showLive(){
   try{
    const r=await GoRailAPI.liveStatus(trainNoOverride||t.number);
    const d=r?.data||r;
-   liveHtml=`<div class="card"><div class="actions" style="justify-content:space-between"><h3 style="margin:0">${esc(trainNoOverride||t.number)} · Live from RapidAPI</h3>${liveBadge()}</div>
+   liveHtml=`<div class="card"><div class="actions" style="justify-content:space-between"><h3 style="margin:0">${esc(trainNoOverride||t.number)} · Live from RailRadar</h3>${liveBadge()}</div>
     <pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;margin-top:10px">${esc(JSON.stringify(d,null,2)).slice(0,1600)}</pre></div>`;
   }catch(e){
    toast("Live status lookup failed ("+(e.code||e.message)+") — showing demo view.","warn");
   }
  }
  if(!liveHtml){
-  liveHtml=`<div class="card"><div class="actions" style="justify-content:space-between"><h3 style="margin:0">${t.number} · ${esc(t.name)}</h3>${liveBadge()}</div><p>${esc(t.from)} → ${esc(t.to)}</p><span class="pill ${t.status==="On Time"?"ok":"warn"}">${t.status}</span><p class="muted">Platform ${t.platform} · ${hasLiveData()?"Demo view (real lookup failed)":"Add a RapidAPI key in Settings for the real live position"}</p><div class="route-line" style="margin-top:18px">● ───── 🚆 ───── ●</div></div>`;
+  liveHtml=`<div class="card"><div class="actions" style="justify-content:space-between"><h3 style="margin:0">${t.number} · ${esc(t.name)}</h3>${liveBadge()}</div><p>${esc(t.from)} → ${esc(t.to)}</p><span class="pill ${t.status==="On Time"?"ok":"warn"}">${t.status}</span><p class="muted">Platform ${t.platform} · ${hasLiveData()?"Demo view (real lookup failed)":"Configure RAILRADAR_API_KEY in Vercel for the real live position"}</p><div class="route-line" style="margin-top:18px">● ───── 🚆 ───── ●</div></div>`;
  }
  const [wFrom,wTo]=await Promise.all([stationWeather(t.from),stationWeather(t.to)]);
  const wchip=w=>w?`<span class="weather-chip">☁️ ${w.station.name} · ${Math.round(w.temp)}°C · ${esc(w.desc)}</span>`:"";
