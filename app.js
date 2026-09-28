@@ -369,12 +369,19 @@ async function checkPnr(){
  let x=$("#pnrInput").value.trim(),out=$("#pnrOut"),b=state.bookings.find(b=>b.pnr===x);
  if(b){out.innerHTML=bookingCard(b);return}
  if(!/^\\d{10}$/.test(x)){out.innerHTML=`<div class="notice warn">Enter a valid 10-digit PNR number.</div>`;return}
- out.innerHTML=`<div class="card">Looking up live PNR…</div>`;
+ out.innerHTML=`<div class="card">Fetching live PNR status…</div>`;
  try{
-  const r=await GoRailAPI.pnrStatus(x);const d=r?.data||r;
-  out.innerHTML=`<div class="card"><div class="actions" style="justify-content:space-between"><h3 style="margin:0">PNR ${esc(x)}</h3>${liveBadge()}</div><pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;margin-top:10px">${esc(JSON.stringify(d,null,2)).slice(0,1600)}</pre></div>`;
- }catch(e){out.innerHTML=`<div class="notice warn">Live lookup failed (${esc(e.code||e.message)}). PNR not found.</div>`}
+  const r=await GoRailAPI.pnrStatus(x),d=r?.data||r;
+  const passengers=d?.passengers||d?.passengerDetails||d?.passengerList||[];
+  const rows=passengers.map((p,i)=>`<tr><td>${i+1}</td><td>${esc(p.currentStatus||p.bookingStatus||p.status||"—")}</td><td>${esc(p.coach||p.coachNumber||"—")}</td><td>${esc(p.berth||p.berthNumber||"—")}</td></tr>`).join("");
+  out.innerHTML=`<div class="card"><div class="actions" style="justify-content:space-between"><h3 style="margin:0">PNR ${esc(x)}</h3><span class="pill ok">LIVE</span></div>
+   <p><b>${esc(d?.trainName||d?.train?.name||"Train details")}</b> · ${esc(d?.trainNumber||d?.train?.number||"")}</p>
+   <p><b>Journey date:</b> ${esc(d?.journeyDate||d?.dateOfJourney||d?.doj||"—")}</p>
+   <p><b>Chart status:</b> ${esc(d?.chartStatus||d?.chartingStatus||"—")}</p>
+   ${rows?`<table class="table"><thead><tr><th>Passenger</th><th>Current status</th><th>Coach</th><th>Berth</th></tr></thead><tbody>${rows}</tbody></table>`:`<pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;margin-top:10px">${esc(JSON.stringify(d,null,2)).slice(0,1800)}</pre>`}</div>`;
+ }catch(e){out.innerHTML=`<div class="notice warn">RailRadar PNR lookup failed: ${esc(e.message||e)}. Check the PNR, API key, and quota.</div>`}
 }
+
 async function showLive(){
  let t=state.trains.find(x=>x.id===$("#liveTrain").value);
  let out=$("#liveOut");out.innerHTML=`<div class="card">Loading…</div>`;
@@ -414,20 +421,27 @@ async function calcFare(){
 }
 function seatMap(available,total=48){let cells=[];for(let i=1;i<=total;i++){let taken=i>available;let rac=!taken&&i>available-4;cells.push(`<div class="seat ${taken?"taken":rac?"rac":""}">${i}</div>`)}return `<div class="coach-map">${cells.join("")}</div>`}
 async function showSeats(){
- let t=state.trains.find(x=>x.id===$("#seatTrain").value),out=$("#seatOut"),base=t.seats;
- let fromC=$("#seatFrom")?.value?.trim(),toC=$("#seatTo")?.value?.trim(),cls=$("#seatClass")?.value,date=$("#seatDate")?.value;
- if(hasLiveData()&&fromC&&toC){
-  out.innerHTML=`<div class="card">Checking live availability…</div>`;
-  try{
-   const r=await GoRailAPI.seatAvailability({trainNo:t.number,fromStationCode:fromC,toStationCode:toC,classType:cls,date});
-   const d=r?.data||r;
-   out.innerHTML=`<div class="card"><div class="actions" style="justify-content:space-between"><h3 style="margin:0">${esc(t.number)} · ${esc(fromC)} → ${esc(toC)} · ${esc(cls)}</h3>${liveBadge()}</div><pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;margin-top:10px">${esc(JSON.stringify(d,null,2)).slice(0,1600)}</pre></div>`;
-   return;
-  }catch(e){toast("Live seat lookup failed ("+(e.code||e.message)+") — showing demo view.","warn")}
- }
- out.innerHTML=`<div class="grid g4">${t.classes.map((c,i)=>{let av=Math.max(0,base-i*11);return `<div class="card"><h3>${c}</h3><div class="stat">${av}</div><span class="pill ok">Available</span>${seatMap(Math.min(av,48))}</div>`}).join("")}</div>
- <p class="muted" style="margin-top:12px">${hasLiveData()?"Enter From/To station codes above for a real availability check.":"Demo availability model. Connect a RapidAPI key in Settings for real class-wise availability."}</p>`;
+ let t=state.trains.find(x=>x.id===$("#seatTrain").value),out=$("#seatOut");
+ let fromC=$("#seatFrom")?.value?.trim().toUpperCase(),toC=$("#seatTo")?.value?.trim().toUpperCase(),cls=$("#seatClass")?.value,date=$("#seatDate")?.value;
+ if(!t){out.innerHTML=`<div class="notice warn">Select a train.</div>`;return}
+ if(!fromC||!toC||!cls||!date){out.innerHTML=`<div class="notice warn">Enter source and destination station codes, class, and journey date.</div>`;return}
+ out.innerHTML=`<div class="card">Checking live seat availability and vacancy…</div>`;
+ try{
+  const r=await GoRailAPI.seatVacancy({trainNo:t.number,fromStationCode:fromC,toStationCode:toC,classType:cls,date});
+  const d=r?.data||r,days=d?.avlDayList||d?.availability||d?.days||[];
+  const cards=days.map(day=>{
+   const status=String(day?.availablityStatus||day?.availabilityStatus||day?.status||day?.available||"Not available");
+   const match=status.match(/AVAILABLE[- ]?(\\d+)/i),vacant=match?Number(match[1]):null;
+   const badge=vacant!==null?`<span class="pill ok">${vacant} seats/berths available</span>`:`<span class="pill ${/RAC/i.test(status)||/WL|WAIT/i.test(status)?"warn":"red"}">${/RAC/i.test(status)?"RAC / shared berth":/WL|WAIT/i.test(status)?"Waitlist":"Unavailable"}</span>`;
+   return `<div class="card"><div class="muted">${esc(day?.availablityDate||day?.availabilityDate||day?.date||"")}</div><h3>${esc(status)}</h3>${badge}</div>`;
+  }).join("");
+  out.innerHTML=`<div class="card"><div class="actions" style="justify-content:space-between"><h3 style="margin:0">${esc(d?.trainName||t.name)} · ${esc(d?.trainNumber||t.number)}</h3><span class="pill ok">LIVE</span></div>
+   <p>${esc(d?.sourceStation||fromC)} → ${esc(d?.destinationStation||toC)} · ${esc(d?.classCode||cls)} · Quota ${esc(d?.quotaCode||"GN")}</p></div>
+   <div class="grid g3" style="margin-top:12px">${cards||`<div class="card"><pre style="white-space:pre-wrap">${esc(JSON.stringify(d,null,2)).slice(0,1800)}</pre></div>`}</div>
+   <p class="muted">Seat vacancy is shown from the live availability status. Availability can change before booking.</p>`;
+ }catch(e){out.innerHTML=`<div class="notice warn">RailRadar seat lookup failed: ${esc(e.message||e)}. Check train number, station codes, date, API access, and quota.</div>`}
 }
+
 function addFood(id){let f=state.food.find(x=>x.id===id),cart=JSON.parse(localStorage.getItem("gorail_cart")||"[]");cart.push(f);localStorage.setItem("gorail_cart",JSON.stringify(cart));let total=cart.reduce((s,x)=>s+x.price,0);$("#foodCart").innerHTML=cart.map(x=>`<p>${x.name} — ₹${x.price}</p>`).join("")+`<hr><b>Total ₹${total}</b><br><button class="btn primary small" style="margin-top:10px" onclick="placeFood()">Place Order</button>`}
 function placeFood(){localStorage.removeItem("gorail_cart");state.notifications.push({id:"f"+Date.now(),title:"Food Order Placed",body:"Your food order has been accepted for processing.",date:new Date().toLocaleDateString("en-IN")});save();toast("Food order placed.");goto("notifications")}
 function complaintModal(){modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>New Complaint</h2><button class="close" onclick="closeModal()">×</button></div><div class="field"><label>Subject</label><input id="csub"></div><div class="field" style="margin-top:12px"><label>Message</label><textarea id="cmsg"></textarea></div><button class="btn primary" style="margin-top:14px" onclick="submitComplaint()">Submit Complaint</button></div></div>`;drawModal()}
