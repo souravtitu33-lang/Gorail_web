@@ -25,6 +25,9 @@ export default async function handler(req, res) {
     if (req.query?.date && /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date))) {
       path += `?date=${encodeURIComponent(req.query.date)}`;
     }
+  } else if (action === "route") {
+    if (!trainNumber(number)) return res.status(400).json({ error: "Enter a valid 5-digit train number." });
+    path = `/v1/trains/${encodeURIComponent(number)}/route?format=coordinates&stops=true`;
   } else if (action === "pnr") {
     if (!/^\d{10}$/.test(pnr)) return res.status(400).json({ error: "Enter a valid 10-digit PNR number." });
     path = `/v1/pnr/${encodeURIComponent(pnr)}`;
