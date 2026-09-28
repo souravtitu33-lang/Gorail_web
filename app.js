@@ -158,7 +158,7 @@ function searchPage(){
     '<div class="card"><datalist id="stationList">' + stationOptions + '</datalist>' +
     '<div class="form-grid"><div class="field"><label>From station / code</label><input id="sfrom" list="stationList" placeholder="e.g. NDLS or New Delhi"></div>' +
     '<div class="field"><label>To station / code</label><input id="sto" list="stationList" placeholder="e.g. HWH or Howrah"></div>' +
-    '<div class="field"><label>Date</label><input id="sdate" type="date" value="' + new Date().toISOString().slice(0,10) + '"></div>' +
+    '<div class="field"><label>Date</label><input id="sdate" type="date" value="' + new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10) + '"></div>' +
     '<div class="field"><label>Class</label><select id="sclass"><option value="">Any class</option><option>1A</option><option>2A</option><option>3A</option><option>SL</option><option>CC</option><option>2S</option></select></div></div>' +
     '<div class="actions" style="margin-top:15px"><button class="btn primary" onclick="searchTrains()">Search timetable</button><button class="btn" onclick="searchLiveBetween()">Live trains between</button><button class="btn" onclick="loadFullDataset()">Load / Refresh Indian Railways Data</button></div>' +
     '<p class="muted" style="margin-top:10px">' + esc(datasetText) + '</p></div>' +
@@ -220,8 +220,14 @@ function livePage(){return pageTitle("Live Status","Current operational status o
  +`<div class="card"><div class="field"><label>Train</label><select id="liveTrain">${state.trains.map(t=>`<option value="${t.id}">${t.number} · ${esc(t.name)}</option>`).join("")}</select></div>
  ${hasLiveData()?`<div class="field" style="margin-top:12px"><label>Or enter any real train number</label><input id="liveTrainNo" placeholder="e.g. 12951"></div>`:""}
  <button class="btn primary" style="margin-top:12px" onclick="showLive()">Track Train</button><div id="liveOut" style="margin-top:18px"></div></div>`}
-function stationsPage(){let ss=["Mumbai Central","New Delhi","Bengaluru","Howrah","Hyderabad","Bhubaneswar","Khurda Road","Cuttack"];return pageTitle("Station Info","Facilities, platforms and operational information",`<span class="weather-chip">🌦️ Live weather (Open-Meteo)</span>`)
- +`<div class="grid g3">${ss.map((s,i)=>`<div class="card"><h3>🚉 ${s}</h3><p class="muted">Station code: ${["MMCT","NDLS","SBC","HWH","HYB","BBS","KUR","CTC"][i]}</p><div class="pill ok">Open</div><div id="wx-${i}" class="muted" style="margin:8px 0">Loading live weather…</div><p>Platforms: ${3+(i%6)} · Food · Waiting room · Help desk</p><button class="btn small" onclick="toast('Station information for ${s}: platform and service details available.')">View Details</button></div>`).join("")}</div>`}
+function stationsPage(){
+ const stations=(ALL_STATIONS.length?ALL_STATIONS:STATIONS_DB).slice(0,24);
+ return pageTitle("Station Info","Station directory and live weather. Platform and facility details are not provided unless verified.")+
+ '<div class="card"><div class="field"><label>Find station</label><input id="stationFilter" placeholder="Station name or code" oninput="filterStationCards()"></div><p class="muted">Showing stations from the loaded railway dataset or built-in weather directory. Operational facilities are not inferred.</p></div>'+
+ '<div id="stationCards" class="grid g3" style="margin-top:14px">'+stations.map((st,i)=>'<div class="card station-card" data-search="'+esc((st.name+" "+st.code).toLowerCase())+'"><h3>🚉 '+esc(st.name)+'</h3><p class="muted">Station code: '+esc(st.code||"—")+'</p><div id="wx-'+i+'" class="muted" style="margin:8px 0">Weather available when coordinates are known.</div><p class="muted">Platform and facility information: not verified in this app.</p></div>').join("")+'</div>';
+}
+function filterStationCards(){const q=($("#stationFilter")?.value||"").trim().toLowerCase();$$(".station-card").forEach(card=>card.hidden=!card.dataset.search.includes(q));}
+
 function loadStationsWeather(){let ss=["Mumbai Central","New Delhi","Bengaluru","Howrah","Hyderabad","Bhubaneswar","Khurda Road","Cuttack"];
  ss.forEach(async(s,i)=>{const w=await stationWeather(s);const el=$("#wx-"+i);if(!el)return;el.innerHTML=w?`<span class="weather-chip">☁️ ${Math.round(w.temp)}°C · ${esc(w.desc)}</span>`:"Weather unavailable";});}
 function foodPage(){return pageTitle("Order Food","Sample menu saved on this device. This does not place a railway catering order.",sourceBadge("device"))
@@ -241,8 +247,9 @@ function seatPage(){return pageTitle("Seat Availability","Check class-wise avail
  +`<div class="card"><div class="field"><label>Train</label><select id="seatTrain">${state.trains.map(t=>`<option value="${t.id}">${t.number} · ${esc(t.name)}</option>`).join("")}</select></div>
  ${hasLiveData()?`<div class="form-grid" style="margin-top:12px"><div class="field"><label>From station code</label><input id="seatFrom" placeholder="e.g. NDLS"></div><div class="field"><label>To station code</label><input id="seatTo" placeholder="e.g. HWH"></div><div class="field"><label>Class</label><select id="seatClass"><option>SL</option><option>3A</option><option>2A</option><option>1A</option></select></div><div class="field"><label>Date</label><input id="seatDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div></div>`:""}
  <button class="btn primary" style="margin-top:12px" onclick="showSeats()">Check Availability</button><div id="seatOut" style="margin-top:18px"></div></div>`}
-function specialPage(){return pageTitle("Special Trains","Seasonal and special service listing")
- +`<div class="grid g2">${state.trains.slice(0,3).map((t,i)=>`<div class="card"><span class="pill warn">SPECIAL SERVICE</span><h3 style="margin-top:10px">${t.number} · ${esc(t.name)}</h3><p>${esc(t.from)} → ${esc(t.to)}</p><p class="muted">Sample listing from the demo train set. Check live status before travel.</p><button class="btn primary small" onclick="bookTrain('${t.id}')">Save enquiry</button></div>`).join("")}</div>`}
+function specialPage(){return pageTitle("Special Trains","Special-service data is not connected yet.")+
+ '<div class="card"><div class="notice warn">GoRail does not currently have a verified special-train feed. Regular demo trains are not labeled as special services.</div><p class="muted">Use Train Enquiry to search the available timetable, and verify special services with an official railway source before travelling.</p><button class="btn primary" onclick="goto(\'search\')">Search timetable</button></div>'}
+
 function emergencyPage(){return pageTitle("Emergency Help","Quick-access railway support contacts")
  +`<div class="grid g3">${[["🚨","Railway Security","139"],["🏥","Medical Emergency","112"],["📞","Railway Helpline","139"],["🛡️","RPF","182"],["🔥","Fire Emergency","101"],["ℹ️","Railway Enquiry","139"]].map(x=>`<div class="card"><div style="font-size:30px">${x[0]}</div><h3>${x[1]}</h3><p class="muted">Emergency contact</p><a class="btn primary" href="tel:${x[2]}">Call ${x[2]}</a></div>`).join("")}</div>`}
 function manageTrainsPage(){return pageTitle("Manage Trains","Add, edit and delete train records",`<button class="btn primary" onclick="trainModal()">+ Add Train</button>`)
@@ -432,10 +439,19 @@ async function register(){let name=$("#rname").value.trim(),email=$("#remail").v
 function closeModal(){modal=null;drawModal()}
 function drawModal(){let old=$("#modalRoot");if(old)old.remove();if(modal){let d=document.createElement("div");d.id="modalRoot";d.innerHTML=modal;document.body.appendChild(d)}}
 function bookTrain(id){let t=state.trains.find(x=>x.id===id);if(!t)return;modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>Save enquiry</h2><button class="close" onclick="closeModal()">×</button></div><div class="notice warn">This stores a quote on this device. It does not reserve a berth and it does not create an IRCTC PNR.</div><div class="notice">${t.number} · ${esc(t.name)} · ${esc(t.from)} → ${esc(t.to)}</div><div class="form-grid" style="margin-top:15px"><div class="field"><label>Passenger Name</label><input id="bname" value="${esc(session.name)}"></div><div class="field"><label>Age</label><input id="bage" type="number" value="21"></div><div class="field"><label>Class</label><select id="bclass">${t.classes.map(c=>`<option>${c}</option>`).join("")}</select></div><div class="field"><label>Gender</label><select id="bgender"><option>Male</option><option>Female</option><option>Other</option></select></div></div><button class="btn primary" style="margin-top:15px;width:100%" onclick="confirmBooking('${t.id}')">Save enquiry · quoted ₹${t.fare}</button></div></div>`;drawModal()}
-function confirmBooking(id){let t=state.trains.find(x=>x.id===id);let p={name:$("#bname").value,age:+$("#bage").value,gender:$("#bgender").value};let cls=$("#bclass").value;
- if(!p.name||!p.age){toast("Enter passenger details.");return}
- let b={id:"enq"+Date.now(),kind:"enquiry",userId:session.id,trainId:id,train:{...t},passenger:p,className:cls,fare:t.fare,ref:"ENQ"+Date.now().toString(36).toUpperCase(),status:"Saved enquiry",source:"device",date:new Date().toLocaleDateString("en-IN")};
- state.bookings.push(b);state.notifications.push({id:"n"+Date.now(),title:"Enquiry saved",body:`${b.ref} for ${t.name}. Not an IRCTC ticket.`,date:b.date});save();closeModal();toast("Enquiry saved on this device.","success");ticketDetail(b.id)}
+function confirmBooking(id){
+ const t=state.trains.find(x=>x.id===id);if(!t)return toast("Train not found.","warn");
+ const name=$("#bname").value.trim(),age=Number($("#bage").value),cls=$("#bclass").value,gender=$("#bgender").value;
+ if(!name||name.length>100){toast("Enter a passenger name (up to 100 characters).","warn");return}
+ if(!Number.isInteger(age)||age<1||age>120){toast("Enter a valid passenger age (1–120).","warn");return}
+ if(!(t.classes||[]).includes(cls)){toast("Select a valid class.","warn");return}
+ const now=Date.now(),ref="ENQ"+now.toString(36).toUpperCase();
+ const b={id:"enq"+now,kind:"enquiry",userId:session.id,trainId:id,train:{...t},passenger:{name,age,gender},className:cls,fare:t.fare,ref,status:"Saved enquiry",source:"device",date:new Date().toLocaleDateString("en-IN")};
+ state.bookings.push(b);state.notifications.push({id:"n"+now,title:"Enquiry saved",body:ref+" for "+t.name+". Not an IRCTC ticket.",date:b.date});
+ if(!save()){state.bookings.pop();state.notifications.pop();return}
+ closeModal();toast("Enquiry saved on this device.","success");ticketDetail(b.id);
+}
+
 function ticketDetail(id){let b=state.bookings.find(x=>x.id===id),t=state.trains.find(x=>x.id===b.trainId)||b.train;modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>Saved enquiry</h2><button class="close" onclick="closeModal()">×</button></div><div id="qr" style="float:right"></div><div class="notice warn">Saved on this device. Not an IRCTC reservation.</div><div class="notice"><b>${esc(b.ref||b.pnr)}</b> · ${esc(b.status)}</div><h3 style="margin-top:18px">${esc(t.number)} · ${esc(t.name)}</h3><p>${esc(t.from)} → ${esc(t.to)} · ${esc(t.dep)} → ${esc(t.arr)}</p><div class="ticket-grid"><div><div class="label">Passenger</div><div class="value">${esc(b.passenger.name)}</div></div><div><div class="label">Age/Gender</div><div class="value">${b.passenger.age}/${esc(b.passenger.gender)}</div></div><div><div class="label">Class</div><div class="value">${esc(b.className)}</div></div><div><div class="label">Quoted fare</div><div class="value">₹${esc(b.fare)}</div></div></div><button class="btn primary" style="margin-top:16px" onclick="window.print()">🖨️ Print / Save as PDF</button></div></div>`;drawModal();setTimeout(()=>{let q=$("#qr");if(q)new QRCode(q,{text:`GORAIL|ENQUIRY:${b.ref||b.id}|TRAIN:${t.number}|NOT_A_PNR`,width:110,height:110})},20)}
 function cancelBooking(id){if(!confirm("Remove this saved enquiry?"))return;let b=state.bookings.find(x=>x.id===id);if(!b)return;b.status="Removed";save();render()}
 async function checkPnr(){
@@ -515,13 +531,32 @@ function placeFood(){localStorage.removeItem("gorail_cart");state.notifications.
 function complaintModal(){modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>New Complaint</h2><button class="close" onclick="closeModal()">×</button></div><div class="field"><label>Subject</label><input id="csub"></div><div class="field" style="margin-top:12px"><label>Message</label><textarea id="cmsg"></textarea></div><button class="btn primary" style="margin-top:14px" onclick="submitComplaint()">Submit Complaint</button></div></div>`;drawModal()}
 function submitComplaint(){let subject=$("#csub").value.trim(),message=$("#cmsg").value.trim();if(!subject||!message)return toast("Enter subject and message.");state.complaints.push({id:"c"+Date.now(),userId:session.id,subject,message,status:"Open",date:new Date().toLocaleDateString("en-IN")});save();closeModal();render()}
 function resolveComplaint(id){if(!requireAdmin())return;let c=state.complaints.find(x=>x.id===id);if(c)c.status="Resolved";save();render()}
-function saveProfile(){session.name=$("#pname").value.trim()||session.name;session.phone=$("#pphone").value.trim();let u=state.users.find(x=>x.id===session.id);if(u){u.name=session.name;u.phone=session.phone}save();toast("Profile updated.");render()}
+function saveProfile(){
+ const name=$("#pname").value.trim(),phone=$("#pphone").value.trim();
+ if(!name||name.length>100){toast("Enter a name up to 100 characters.","warn");return}
+ if(phone&&!/^\\+?[0-9 ()-]{7,20}$/.test(phone)){toast("Enter a valid phone number.","warn");return}
+ const old={name:session.name,phone:session.phone};session.name=name;session.phone=phone;
+ const u=state.users.find(x=>x.id===session.id);if(u){u.name=name;u.phone=phone}
+ if(!save()){session.name=old.name;session.phone=old.phone;if(u){u.name=old.name;u.phone=old.phone}return}
+ toast("Profile updated on this device.","success");render();
+}
+
 function trainModal(id){let t=id?state.trains.find(x=>x.id===id):{number:"",name:"",from:"",to:"",dep:"",arr:"",duration:"",fare:1000,seats:50,platform:"1",status:"On Time",classes:["1A","2A","3A"]};
  modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>${id?"Edit":"Add"} Train</h2><button class="close" onclick="closeModal()">×</button></div><div class="form-grid">
  ${["number","name","from","to","dep","arr","duration","fare","seats","platform"].map(k=>`<div class="field"><label>${k}</label><input id="t_${k}" value="${esc(t[k])}"></div>`).join("")}
  <div class="field"><label>Status</label><select id="t_status"><option ${t.status==="On Time"?"selected":""}>On Time</option><option ${t.status!=="On Time"?"selected":""}>Delayed 15m</option></select></div>
  </div><button class="btn primary" style="margin-top:15px" onclick="saveTrain('${id||""}')">Save Train</button></div></div>`;drawModal()}
-function saveTrain(id){if(!requireAdmin())return;let o={id:id||Date.now().toString(),number:$("#t_number").value,name:$("#t_name").value,from:$("#t_from").value,to:$("#t_to").value,dep:$("#t_dep").value,arr:$("#t_arr").value,duration:$("#t_duration").value,fare:+$("#t_fare").value,seats:+$("#t_seats").value,platform:$("#t_platform").value,status:$("#t_status").value,classes:["1A","2A","3A","SL"]};if(!o.number||!o.name||!o.from||!o.to)return toast("Fill train details.");let i=state.trains.findIndex(x=>x.id===id);if(i>=0)state.trains[i]=o;else state.trains.push(o);save();closeModal();render()}
+function saveTrain(id){
+ if(!requireAdmin())return;
+ const o={id:id||Date.now().toString(),number:$("#t_number").value.trim(),name:$("#t_name").value.trim(),from:$("#t_from").value.trim(),to:$("#t_to").value.trim(),dep:$("#t_dep").value,arr:$("#t_arr").value,duration:$("#t_duration").value.trim(),fare:Number($("#t_fare").value),seats:Number($("#t_seats").value),platform:$("#t_platform").value.trim(),status:$("#t_status").value,classes:["1A","2A","3A","SL"]};
+ if(!/^\\d{5}$/.test(o.number)||!o.name||!o.from||!o.to||o.from.toLowerCase()===o.to.toLowerCase()){toast("Enter a 5-digit train number, name, and different origin/destination.","warn");return}
+ if(!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(o.dep)||!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(o.arr)){toast("Enter valid departure and arrival times (HH:MM).","warn");return}
+ if(!Number.isFinite(o.fare)||o.fare<0||!Number.isInteger(o.seats)||o.seats<0){toast("Fare and seat count must be valid non-negative numbers.","warn");return}
+ const duplicate=state.trains.find(x=>x.number===o.number&&x.id!==id);if(duplicate){toast("A train with this number already exists.","warn");return}
+ const i=state.trains.findIndex(x=>x.id===id);if(i>=0)state.trains[i]=o;else state.trains.push(o);
+ if(!save())return;closeModal();render();toast("Train saved locally.","success");
+}
+
 function deleteTrain(id){if(!requireAdmin())return;if(!confirm("Delete this train?"))return;state.trains=state.trains.filter(t=>t.id!==id);save();render()}
 function sendBroadcast(){if(!requireAdmin())return;let m=$("#broadcastText").value.trim();if(!m)return toast("Enter a notice.");state.broadcasts.push({id:"br"+Date.now(),message:m,date:new Date().toLocaleDateString("en-IN")});state.notifications.push({id:"bn"+Date.now(),title:"Railway Notice",body:m,date:new Date().toLocaleDateString("en-IN")});save();toast("Notice broadcasted.");render()}
 let autoRailLoadPromise=null;
