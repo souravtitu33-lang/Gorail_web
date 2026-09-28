@@ -26,13 +26,13 @@ let session=null; // Firebase Auth is the source of truth; never restore a local
 let page="dashboard", modal=null, searchResults=[];
 let mapRefreshTimer=null;
 loadCachedIndex();
-function save(){localStorage.setItem(KEY,JSON.stringify(state));localStorage.setItem("gorail_session",JSON.stringify(session))}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state));localStorage.setItem("gorail_session",JSON.stringify(session));return true}catch(e){toast("Could not save locally. Browser storage may be full.","warn");return false}}
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
 function icon(x){return `<span>${x}</span>`}
 function toast(msg,type="info"){let r=$("#toastRoot");if(!r){r=document.createElement("div");r.id="toastRoot";r.className="toast-stack";document.body.appendChild(r)}
  let t=document.createElement("div");t.className="toast "+(type==="success"?"success":type==="warn"?"warn":"");t.textContent=msg;r.appendChild(t);setTimeout(()=>t.remove(),3800)}
 function toggleTheme(){let cur=document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",cur);localStorage.setItem("gorail_theme",cur);render()}
-function liveBadge(){return `<span class="live-badge" title="RailRadar live API via secure server-side proxy"><span class="dot"></span>LIVE</span>`}
+function liveBadge(){return `<span class="live-badge off" title="Live status is confirmed only after a successful API response"><span class="dot"></span>LIVE API</span>`}
 function sourceBadge(kind){
  if(kind==="live") return `<span class="pill ok">LIVE</span>`;
  if(kind==="timetable") return `<span class="pill">TIMETABLE</span>`;
