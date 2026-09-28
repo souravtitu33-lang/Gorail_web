@@ -368,7 +368,7 @@ function cancelBooking(id){if(!confirm("Cancel this ticket?"))return;let b=state
 async function checkPnr(){
  let x=$("#pnrInput").value.trim(),out=$("#pnrOut"),b=state.bookings.find(b=>b.pnr===x);
  if(b){out.innerHTML=bookingCard(b);return}
- if(!/^\\d{10}$/.test(x)){out.innerHTML=`<div class="notice warn">Enter a valid 10-digit PNR number.</div>`;return}
+ if(!/^\d{10}$/.test(x)){out.innerHTML=`<div class="notice warn">Enter a valid 10-digit PNR number.</div>`;return}
  out.innerHTML=`<div class="card">Fetching live PNR status…</div>`;
  try{
   const r=await GoRailAPI.pnrStatus(x),d=r?.data||r;
@@ -431,7 +431,7 @@ async function showSeats(){
   const d=r?.data||r,days=d?.avlDayList||d?.availability||d?.days||[];
   const cards=days.map(day=>{
    const status=String(day?.availablityStatus||day?.availabilityStatus||day?.status||day?.available||"Not available");
-   const match=status.match(/AVAILABLE[- ]?(\\d+)/i),vacant=match?Number(match[1]):null;
+   const match=status.match(/AVAILABLE[- ]?(\d+)/i),vacant=match?Number(match[1]):null;
    const badge=vacant!==null?`<span class="pill ok">${vacant} seats/berths available</span>`:`<span class="pill ${/RAC/i.test(status)||/WL|WAIT/i.test(status)?"warn":"red"}">${/RAC/i.test(status)?"RAC / shared berth":/WL|WAIT/i.test(status)?"Waitlist":"Unavailable"}</span>`;
    return `<div class="card"><div class="muted">${esc(day?.availablityDate||day?.availabilityDate||day?.date||"")}</div><h3>${esc(status)}</h3>${badge}</div>`;
   }).join("");
