@@ -260,11 +260,14 @@ function broadcastPage(){return pageTitle("Broadcast Notice","Send a notice to p
 
 function mapPage(){
  const loaded=railDatasetLoaded();
- return pageTitle("Train Running Status","Station-by-station journey timeline",liveBadge())+
+ const stations=(ALL_STATIONS||[]).slice(0,10000);
+ return pageTitle("Train Running Status","Choose your boarding and destination stations",liveBadge())+
  '<div class="card"><div class="field autocomplete"><label>Train number or name</label><input id="mapTrainQuery" placeholder="e.g. 20917 or Puri Humsafar" oninput="mapSuggest()" autocomplete="off"><div id="mapAcList"></div></div>'+
+ '<div class="grid g2" style="margin-top:12px"><div class="field"><label>From station</label><input id="mapFromStation" list="mapStationOptions" placeholder="Station name or code"></div><div class="field"><label>To station</label><input id="mapToStation" list="mapStationOptions" placeholder="Station name or code"></div></div>'+
+ '<datalist id="mapStationOptions">'+stations.map(st=>'<option value="'+esc(st.code||"")+'" label="'+esc(st.name||"")+'"></option><option value="'+esc(st.name||"")+'" label="'+esc(st.code||"")+'"></option>').join("")+'</datalist>'+
  '<div class="field" style="margin-top:12px"><label>Journey date</label><input id="mapDate" type="date" value="'+new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10)+'"></div>'+
  '<button class="btn primary" style="margin-top:12px" onclick="trackTrainOnMap()">Show running status</button>'+
- (loaded?'':'<p class="muted" style="margin-top:10px">Load the all-India timetable in Settings to search more trains.</p>')+
+ (loaded?'':'<p class="muted" style="margin-top:10px">Load the all-India timetable in Settings to search more trains and stations.</p>')+
  '</div><div id="mapResultInfo" style="margin-top:16px"></div>';
 }
 
