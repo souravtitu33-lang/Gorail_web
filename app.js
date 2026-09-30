@@ -261,15 +261,33 @@ function broadcastPage(){return pageTitle("Broadcast Notice","Send a notice to p
 function mapPage(){
  const loaded=railDatasetLoaded();
  const stations=(ALL_STATIONS||[]).slice(0,10000);
- return pageTitle("Train Running Status","Choose your boarding and destination stations",liveBadge())+
- '<div class="card"><div class="field autocomplete"><label>Train number or name</label><input id="mapTrainQuery" placeholder="e.g. 20917 or Puri Humsafar" oninput="mapSuggest()" autocomplete="off"><div id="mapAcList"></div></div>'+
- '<div class="grid g2" style="margin-top:12px"><div class="field"><label>From station</label><input id="mapFromStation" list="mapStationOptions" placeholder="Station name or code"></div><div class="field"><label>To station</label><input id="mapToStation" list="mapStationOptions" placeholder="Station name or code"></div></div>'+
- '<datalist id="mapStationOptions">'+stations.map(st=>'<option value="'+esc(st.code||"")+'" label="'+esc(st.name||"")+'"></option><option value="'+esc(st.name||"")+'" label="'+esc(st.code||"")+'"></option>').join("")+'</datalist>'+
+ return pageTitle("Where is My Train","Find trains between stations and track live running status",liveBadge())+
+ '<div class="card gr-search-card"><div class="gr-station-field"><span class="gr-station-marker">●</span><div class="field"><label>From station</label><input id="mapFromStation" list="mapStationOptions" placeholder="Enter boarding station" autocomplete="off"></div><button class="gr-clear" type="button" onclick="document.getElementById(\'mapFromStation\').value=\'\'">×</button></div>'+
+ '<div class="gr-station-connector">⋮<br>↓</div><div class="gr-station-field"><span class="gr-station-marker">●</span><div class="field"><label>To station</label><input id="mapToStation" list="mapStationOptions" placeholder="Enter destination station" autocomplete="off"></div><button class="gr-clear" type="button" onclick="document.getElementById(\'mapToStation\').value=\'\'">×</button></div>'+
+ '<div class="gr-search-actions"><button class="btn primary" onclick="findTrainsForJourney()">Find trains</button><button class="btn" type="button" onclick="swapJourneyStations()">⇅</button></div></div>'+
+ '<datalist id="mapStationOptions">'+stations.map(st=>'<option value="'+esc(st.name||"")+'"></option><option value="'+esc(st.code||"")+'"></option>').join("")+'</datalist>'+
+ '<div class="card gr-train-search"><div class="gr-train-icon">🚆</div><div class="field autocomplete"><label>Train No. / Train Name</label><input id="mapTrainQuery" placeholder="Enter train number or name" oninput="mapSuggest()" autocomplete="off"><div id="mapAcList"></div></div><button class="btn primary gr-icon-button" type="button" onclick="trackTrainOnMap()" aria-label="Track train">⌕</button></div>'+
  '<div class="field" style="margin-top:12px"><label>Journey date</label><input id="mapDate" type="date" value="'+new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10)+'"></div>'+
- '<button class="btn primary" style="margin-top:12px" onclick="trackTrainOnMap()">Show running status</button>'+
  (loaded?'':'<p class="muted" style="margin-top:10px">Load the all-India timetable in Settings to search more trains and stations.</p>')+
- '</div><div id="mapResultInfo" style="margin-top:16px"></div>';
+ '<div id="mapJourneyMatches" style="margin-top:12px"></div><div id="mapResultInfo" style="margin-top:16px"></div>'+
+ '<style>.gr-search-card{background:var(--card);padding:16px}.gr-station-field{display:grid;grid-template-columns:24px minmax(0,1fr) 28px;gap:10px;align-items:center}.gr-station-marker{color:#9bc7ff;font-size:19px;text-align:center}.gr-station-field .field{margin:0}.gr-clear{border:0;background:transparent;color:var(--muted);font-size:25px;cursor:pointer}.gr-station-connector{margin-left:7px;padding:0 0 0 0;height:30px;line-height:13px;color:var(--muted);font-size:16px}.gr-search-actions{display:flex;gap:8px;margin-top:14px}.gr-search-actions .btn:first-child{flex:1}.gr-train-search{display:grid;grid-template-columns:44px minmax(0,1fr) 52px;gap:12px;align-items:center;margin-top:14px}.gr-train-icon{font-size:28px}.gr-train-search .field{margin:0}.gr-icon-button{height:48px;font-size:25px;padding:0}@media(max-width:480px){.gr-train-search{grid-template-columns:34px minmax(0,1fr) 46px;gap:8px}}</style>';
 }
+function swapJourneyStations(){const a=$("#mapFromStation"),b=$("#mapToStation");if(!a||!b)return;const v=a.value;a.value=b.value;b.value=v;}
+function findTrainsForJourney(){
+ const from=($("#mapFromStation")?.value||"").trim(),to=($("#mapToStation")?.value||"").trim(),box=$("#mapJourneyMatches");
+ if(!from||!to){toast("Enter both boarding and destination stations.","warn");return}
+ if(from.toLowerCase()===to.toLowerCase()){toast("Choose two different stations.","warn");return}
+ const all=railDatasetLoaded()?ALL_TRAINS_INDEX:[];
+ const match=(q)=>q.toLowerCase();
+ const results=all.filter(t=>{
+  const stops=ALL_TRAIN_SCHEDULES?.get?.(String(t.number))||[];
+  const idx=stops.findIndex(st=>[st.station_code,st.stationCode,st.code,st.station_name,st.stationName,st.name].some(v=>String(v||"").toLowerCase()===match(qStation(from))));
+  const j=stops.findIndex(st=>[st.station_code,st.stationCode,st.code,st.station_name,st.stationName,st.name].some(v=>String(v||"").toLowerCase()===match(qStation(to))));
+  return idx>=0&&j>idx;
+ }).slice(0,20);
+ box.innerHTML=results.length?'<div class="card"><h3>Trains for your journey</h3>'+results.map(t=>'<button class="btn" style="display:block;width:100%;text-align:left;margin:8px 0" onclick="selectMapTrain(\''+esc(String(t.number))+'\',\''+esc(String(t.name||"")).replace(/'/g,"\\'")+'\')">'+esc(String(t.number))+' · '+esc(String(t.name||"Train"))+' <span class="muted">('+esc(String(t.from||""))+' → '+esc(String(t.to||""))+')</span></button>').join("")+'</div>':'<div class="notice warn">No matching trains found in the loaded timetable. You can still enter a train number below to check its running status.</div>';
+}
+function qStation(v){return String(v||"").trim().toLowerCase();}
 
 function mapSuggest(){
  const q=$("#mapTrainQuery").value.trim();const box=$("#mapAcList");
