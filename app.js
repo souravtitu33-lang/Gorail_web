@@ -261,7 +261,7 @@ function broadcastPage(){return pageTitle("Broadcast Notice","Send a notice to p
 function mapPage(){
  const loaded=railDatasetLoaded();
  const stations=(ALL_STATIONS||[]).slice(0,10000);
- return pageTitle("Where is My Train","Find trains between stations and track live running status",liveBadge())+
+ return pageTitle("Find My Train","Find trains between stations and track live running status",liveBadge())+
  '<div class="card gr-search-card"><div class="gr-station-field"><span class="gr-station-marker">●</span><div class="field"><label>From station</label><input id="mapFromStation" list="mapStationOptions" placeholder="Enter boarding station" autocomplete="off"></div><button class="gr-clear" type="button" onclick="document.getElementById(\'mapFromStation\').value=\'\'">×</button></div>'+
  '<div class="gr-station-connector">⋮<br>↓</div><div class="gr-station-field"><span class="gr-station-marker">●</span><div class="field"><label>To station</label><input id="mapToStation" list="mapStationOptions" placeholder="Enter destination station" autocomplete="off"></div><button class="gr-clear" type="button" onclick="document.getElementById(\'mapToStation\').value=\'\'">×</button></div>'+
  '<div class="gr-search-actions"><button class="btn primary" onclick="findTrainsForJourney()">Find trains</button><button class="btn" type="button" onclick="swapJourneyStations()">⇅</button></div></div>'+
