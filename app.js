@@ -260,17 +260,14 @@ function broadcastPage(){return pageTitle("Broadcast Notice","Send a notice to p
 
 function mapPage(){
  const loaded=railDatasetLoaded();
- return pageTitle("Live Map","Real route + train position on a map",`${liveBadge()} <span class="live-badge ${hasGoogleMaps()?"":"off"}">${hasGoogleMaps()?"GOOGLE MAPS":"OPENSTREETMAP"}</span>`)
- +`<div class="card">
-  ${loaded?`<div class="notice">✅ Searching across all <b>${ALL_TRAINS_INDEX.length.toLocaleString()}</b> real Indian trains.</div>`:
-   `<div class="notice warn">All-India dataset not loaded yet — searching only the ${state.trains.length} demo trains. <button class="btn small" onclick="settingsModal()">Load all India trains (⚙️ Settings)</button></div>`}
-  <div class="field autocomplete" style="margin-top:14px"><label>Train number or name</label><input id="mapTrainQuery" placeholder="e.g. 12951 or Rajdhani" oninput="mapSuggest()" autocomplete="off"><div id="mapAcList"></div></div>
-  <div class="field" style="margin-top:12px"><label>Journey date (for schedule-based position, if not live)</label><input id="mapDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
-  <button class="btn primary" style="margin-top:12px" onclick="trackTrainOnMap()">Track on Map</button>
- </div>
- <div id="mapResultInfo" style="margin-top:16px"></div>
- <div class="card" style="margin-top:16px;padding:0;overflow:hidden"><div id="trainMapEl" style="height:440px"></div></div>`;
+ return pageTitle("Train Running Status","Station-by-station journey timeline",liveBadge())+
+ '<div class="card"><div class="field autocomplete"><label>Train number or name</label><input id="mapTrainQuery" placeholder="e.g. 20917 or Puri Humsafar" oninput="mapSuggest()" autocomplete="off"><div id="mapAcList"></div></div>'+
+ '<div class="field" style="margin-top:12px"><label>Journey date</label><input id="mapDate" type="date" value="'+new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10)+'"></div>'+
+ '<button class="btn primary" style="margin-top:12px" onclick="trackTrainOnMap()">Show running status</button>'+
+ (loaded?'':'<p class="muted" style="margin-top:10px">Load the all-India timetable in Settings to search more trains.</p>')+
+ '</div><div id="mapResultInfo" style="margin-top:16px"></div>';
 }
+
 function mapSuggest(){
  const q=$("#mapTrainQuery").value.trim();const box=$("#mapAcList");
  if(!q){box.innerHTML="";return}
@@ -282,92 +279,52 @@ function mapSuggest(){
 }
 function selectMapTrain(number,label){$("#mapTrainQuery").value=number;$("#mapAcList").innerHTML="";}
 async function trackTrainOnMap(){
- const q=$("#mapTrainQuery").value.trim(),date=$("#mapDate").value,info=$("#mapResultInfo");
- if(!q){toast("Enter a train number.");return}
- let real=railDatasetLoaded()?ALL_TRAINS_INDEX.find(t=>t.number===q)||searchAllTrains(q,1)[0]:null;
- let demo=state.trains.find(t=>t.number===q||t.id===q||t.name.toLowerCase().includes(q.toLowerCase()));
- if(!real&&!demo&&!/^\\d{5}$/.test(q)){info.innerHTML=`<div class="notice warn">Train not found. ${railDatasetLoaded()?"Check the number/name.":"Load the all-India dataset in Settings to search every real train."}</div>`;return}
- info.innerHTML=`<div class="card">Locating train…</div>`;
- let route=null,routeData=null,fromName="",toName="",distance=null,durH=0,durM=0,dep="00:00",number="",name="",classes=[];
- if(real){
-  number=real.number;name=real.name;fromName=real.from_name||"";toName=real.to_name||"";
-  distance=real.distance;durH=real.duration_h;durM=real.duration_m;dep=real.departure||"00:00";classes=real.classes||[];
-  route=getTrainRoute(real.number);
- }else{
-  number=demo?.number||q;name=demo?.name||number;fromName=demo?.from||"";toName=demo?.to||"";dep=demo?.dep||"00:00";classes=demo?.classes||[];
-  const fS=demo?findStation(demo.from):null,tS=demo?findStation(demo.to):null;
-  route=fS&&tS?[[fS.lon,fS.lat],[tS.lon,tS.lat]]:null;
-  const dm=(demo?.duration||"").match(/(\d+)h\s*(\d+)?/);durH=dm?+dm[1]:0;durM=dm&&dm[2]?+dm[2]:0;
- }
- const livePromise=GoRailAPI.liveStatus(number,"1",date||undefined).then(value=>({value})).catch(error=>({error}));
- if(!route || route.length<2){
-  try{
-   const rr=await GoRailAPI.trainRoute(number);
-   routeData=rr&&(rr.data||rr);
-   const geo=routeData&&(routeData.geojson&&routeData.geojson.geometry&&routeData.geojson.geometry.coordinates||(routeData.geometry&&routeData.geometry.coordinates));
-   const coords=routeData&&routeData.coordinates;
-   if(Array.isArray(geo)&&geo.length>1)route=geo.map(p=>[Number(p[0]),Number(p[1])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));
-   else if(Array.isArray(coords)&&coords.length>1)route=coords.map(p=>[Number(p[1]),Number(p[0])]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1]));
-   const stopList=routeData&&(routeData.stops||routeData.stations||routeData.route);
-   if((!route||route.length<2)&&Array.isArray(stopList))route=stopList.filter(s=>Number.isFinite(Number(s.lat??s.latitude))&&Number.isFinite(Number(s.lng??s.lon??s.longitude))).map(s=>[Number(s.lng??s.lon??s.longitude),Number(s.lat??s.latitude)]);
-   const src=routeData?.train?.source, dst=routeData?.train?.destination;
-   if(src?.name) fromName=fromName||src.name;
-   if(dst?.name) toName=toName||dst.name;
-  }catch(e){console.warn("RailRadar route lookup:",e)}
- }
- let posLabel="Estimated position (based on timetable)",trainPoint=null,liveData=null;
- try{
-  const liveResult=await livePromise;
-  if(liveResult.error)throw liveResult.error;
-  const r=liveResult.value,d=r?.data||r;
-  liveData=d;
-  // RailRadar can return authoritative route geometry with the live response.
-  // Prefer that geometry so the map follows the actual railway path instead of a straight line.
-  const liveGeo=d?.geometry?.coordinates || d?.routeGeometry?.coordinates || d?.geometry || d?.routeGeometry;
-  if(Array.isArray(liveGeo)&&liveGeo.length>1&&Array.isArray(liveGeo[0])){
-   const candidate=liveGeo.map(p=>Array.isArray(p)?[Number(p[0]),Number(p[1])]:null).filter(p=>p&&Number.isFinite(p[0])&&Number.isFinite(p[1]));
-   if(candidate.length>1) route=candidate;
-  }
-  if(d?.trainName||d?.train?.name) name=d.trainName||d.train.name;
-  if(d?.train?.source?.name) fromName=d.train.source.name;
-  if(d?.train?.destination?.name) toName=d.train.destination.name;
-  const pos=d?.currentLocation||d?.current_position||d?.currentPosition||{};
-  const stCode=pos.stationCode||pos.station_code||d?.current_station_code||d?.current_station||d?.station_code||d?.last_station_code;
-  const stName=pos.stationName||pos.station_name||d?.current_station_name||d?.station_name;
-  const st=(stCode&&typeof findRealStation==="function"&&findRealStation(stCode))||(stName&&typeof findRealStation==="function"&&findRealStation(stName));
-  const routeStops=[...(routeData?.stops||[]), ...(Array.isArray(d?.route)?d.route:[])];
-  const liveStop=routeStops.find(s=>String(s.code||s.stationCode||"").toUpperCase()===String(stCode||"").toUpperCase());
-  const src=d?.train?.source, dst=d?.train?.destination;
-  const endpoint=[src,dst].find(s=>s && String(s.code||"").toUpperCase()===String(stCode||"").toUpperCase());
-  const lat=pos.latitude??pos.lat??liveStop?.lat??liveStop?.latitude??endpoint?.lat??endpoint?.latitude;
-  const lon=pos.longitude??pos.lng??pos.lon??liveStop?.lng??liveStop?.lon??liveStop?.longitude??endpoint?.lng??endpoint?.lon??endpoint?.longitude;
-  if(lat!=null&&lon!=null&&Number.isFinite(Number(lat))&&Number.isFinite(Number(lon))){
-   trainPoint={lat:Number(lat),lon:Number(lon)};
-   posLabel="Live position — "+(stName||stCode||"last reported station");
-  }else if(st&&Number.isFinite(Number(st.lat))&&Number.isFinite(Number(st.lon))){
-   trainPoint={lat:Number(st.lat),lon:Number(st.lon)};
-   posLabel="Live position — "+(stName||stCode||"last reported station");
-  }
- }catch(e){console.warn("GoRail live position unavailable:",e)}
- if(!trainPoint) posLabel="Timetable route only. Live position was not returned.";
- if(!trainPoint && !(route?.length>=2)){
-  info.innerHTML=`<div class="notice warn">Live position was not returned, and no timetable route is available for this train.</div>`;return;
- }
- const stops=route?.length>=2?[route[0],route[route.length-1]].map((c,i)=>({lat:c[1],lon:c[0],name:i===0?fromName:toName})):[];
- try{
-  await renderTrainMap("trainMapEl",{routeCoords:route||[],trainPoint,stationStops:stops,trainLabel:`${number} · ${name}`});
- }catch(e){
-  console.error("GoRail map rendering failed:",e);
-  const mapEl=$("#trainMapEl");if(mapEl)mapEl.innerHTML=`<div class="notice warn">Map could not load. Check your internet connection and allow the OpenStreetMap/Leaflet map resources.</div>`;
- }
- const live=posLabel.startsWith("Live ");
- info.innerHTML=`<div class="card"><div class="actions" style="justify-content:space-between"><h3 style="margin:0">${esc(number)} · ${esc(name)}</h3><span class="live-badge ${live?"":"off"}"><span class="dot"></span>${live?"LIVE POSITION":"ESTIMATED POSITION"}</span></div>
- <p>${esc(fromName)} → ${esc(toName)}${distance?` · ${distance} km`:""} · ${durH||0}h ${durM||0}m</p>
- ${classes.length?`<div class="actions">${classes.map(c=>`<span class="pill">${esc(c)}</span>`).join("")}</div>`:""}
- <p class="muted" style="margin-top:8px">${esc(posLabel)}${liveData?.lastUpdatedAt?` · Updated ${esc(liveData.lastUpdatedAt)}`:""}</p>
- ${!live?`<p class="muted">The line is the timetable route. A train marker appears only when RailRadar returns a live position.</p>`:""}
- </div>`;
+ const q=$("#mapTrainQuery")?.value.trim(),date=$("#mapDate")?.value,info=$("#mapResultInfo");
+ if(!q){toast("Enter a train number or name.","warn");return}
+ const real=railDatasetLoaded()?(ALL_TRAINS_INDEX.find(t=>String(t.number)===q)||searchAllTrains(q,1)[0]):null;
+ const demo=state.trains.find(t=>String(t.number)===q||t.id===q||t.name.toLowerCase().includes(q.toLowerCase()));
+ if(!real&&!demo&&!/^\\d{5}$/.test(q)){info.innerHTML='<div class="notice warn">Train not found. Check the number or load the all-India timetable in Settings.</div>';return}
+ const number=String(real?.number||demo?.number||q),name=real?.name||demo?.name||number;
+ info.innerHTML='<div class="card">Loading timetable and checking live running status…</div>';
+ let live=null,liveError=null;
+ try{const response=await GoRailAPI.liveStatus(number,"1",date||undefined);live=response?.data||response?.result||response;}
+ catch(e){liveError=e}
+ let stops=(ALL_TRAIN_SCHEDULES?.get?.(number)||[]).slice();
+ if(!stops.length&&Array.isArray(live?.route))stops=live.route.map((s,i)=>({station_code:s.stationCode||s.station_code||s.code||"",station_name:s.stationName||s.station_name||s.name||"",arrival:s.scheduledArrival||s.arrival||"",departure:s.scheduledDeparture||s.departure||"",day:s.day||"",distance:s.distance??s.distanceFromSource??""}));
+ if(!stops.length&&demo)stops=[{station_code:"",station_name:demo.from,arrival:"",departure:demo.dep||"",day:""},{station_code:"",station_name:demo.to,arrival:demo.arr||"",departure:"",day:""}];
+ const pos=live?.currentLocation||live?.current_position||live?.currentPosition||{};
+ const currentCode=String(pos.stationCode||pos.station_code||live?.current_station_code||live?.current_station||"").toUpperCase();
+ const currentName=String(pos.stationName||pos.station_name||live?.current_station_name||"");
+ let currentIndex=stops.findIndex(s=>currentCode&&String(s.station_code||s.stationCode||s.code||"").toUpperCase()===currentCode);
+ if(currentIndex<0&&currentName)currentIndex=stops.findIndex(s=>String(s.station_name||s.stationName||s.name||"").toLowerCase()===currentName.toLowerCase());
+ const delayValue=live?.delayMinutes??live?.delayInMinutes??live?.delay??pos.delayMinutes;
+ const delay=Number(delayValue);
+ const status=live?.status||live?.trainStatus||pos.status||"Running status unavailable";
+ const safe= v=>esc(v==null||v===""?"—":String(v));
+ const dateObj=date?new Date(date+"T12:00:00"):new Date();
+ const dateLabel=dateObj.toLocaleDateString("en-IN",{day:"numeric",month:"short",weekday:"short"});
+ const rows=stops.map((st,i)=>{
+  const code=st.station_code||st.stationCode||st.code||"";
+  const station=st.station_name||st.stationName||st.name||code||"Station";
+  const isCurrent=i===currentIndex;
+  const passed=currentIndex>=0&&i<currentIndex;
+  const arr=st.actualArrival||st.arrival||st.scheduledArrival||"—";
+  const dep=st.actualDeparture||st.departure||st.scheduledDeparture||"—";
+  const arrDelay=st.delayArrival??st.arrivalDelay??"";
+  const depDelay=st.delayDeparture??st.departureDelay??"";
+  const distance=st.distance??st.distanceFromSource;
+  return '<div class="gr-stop '+(isCurrent?'current':passed?'passed':'')+'"><div class="gr-time gr-arr"><span>'+safe(arr)+'</span>'+(arrDelay!==""?'<small>'+safe(arrDelay)+' min</small>':'')+'</div><div class="gr-rail"><span class="gr-dot"></span></div><div class="gr-stop-main"><div class="gr-stop-name">'+safe(station)+(isCurrent?'<span class="gr-current-tag">CURRENT</span>':'')+'</div><div class="gr-stop-meta">'+(distance!==undefined&&distance!==""?safe(distance)+' km':'')+(code?' · '+safe(code):'')+(st.day?' · Day '+safe(st.day):'')+'</div></div><div class="gr-time gr-dep"><span>'+safe(dep)+'</span>'+(depDelay!==""?'<small>'+safe(depDelay)+' min</small>':'')+'</div></div>';
+ }).join("");
+ info.innerHTML='<style>.gr-running{background:#111318;color:#e8edf5;border-radius:16px;overflow:hidden;border:1px solid var(--line)}.gr-running-head{background:#202a3b;padding:16px 18px}.gr-running-head h2{margin:0 0 5px;font-size:20px}.gr-running-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.gr-running-actions span{background:#303b4e;border-radius:22px;padding:8px 13px;font-size:13px}.gr-columns{display:grid;grid-template-columns:72px 1fr 72px;gap:12px;background:#08090c;padding:10px 14px;font-size:12px;color:#dce3ef}.gr-columns span:last-child{text-align:right}.gr-stops{max-height:65vh;overflow:auto;padding:12px 12px 20px}.gr-stop{display:grid;grid-template-columns:72px 18px minmax(0,1fr) 72px;gap:10px;min-height:76px;position:relative;align-items:start}.gr-time{font-size:12px;color:#d4d9e2;padding-top:9px;display:flex;flex-direction:column;gap:3px}.gr-time small{color:#ff8676}.gr-dep{text-align:right}.gr-rail{position:relative;display:flex;justify-content:center;height:100%;min-height:76px}.gr-rail:before{content:"";position:absolute;top:0;bottom:0;width:12px;background:#243650}.gr-dot{position:relative;z-index:1;width:13px;height:13px;border-radius:50%;background:#9bc7ff;border:2px solid #243650;margin-top:12px}.gr-stop.passed .gr-dot{background:#65c18c}.gr-stop.current .gr-dot{background:#ff796b;box-shadow:0 0 0 5px #ff796b33}.gr-stop-main{padding:7px 0 16px;min-width:0}.gr-stop-name{font-size:16px;font-weight:600;overflow-wrap:anywhere}.gr-stop-meta{font-size:12px;color:#aeb8c8;margin-top:5px}.gr-current-tag{display:inline-block;margin-left:7px;background:#b42318;color:white;border-radius:5px;padding:2px 5px;font-size:9px;vertical-align:middle}.gr-status{background:#202a3b;padding:14px 16px;border-top:1px solid #394456}.gr-status strong{font-size:17px;color:#ff8577}.gr-muted{font-size:12px;color:#b5bfce;margin-top:7px}@media(max-width:480px){.gr-columns{grid-template-columns:58px 1fr 58px}.gr-stop{grid-template-columns:58px 14px minmax(0,1fr) 58px;gap:7px}.gr-stop-name{font-size:14px}.gr-time{font-size:11px}}</style>'+
+ '<section class="gr-running"><div class="gr-running-head"><h2>'+safe(number)+' '+safe(name)+'</h2><div class="gr-muted">'+safe(real?.from_name||demo?.from||"")+' → '+safe(real?.to_name||demo?.to||"")+'</div><div class="gr-running-actions"><span>📅 '+safe(dateLabel)+'</span><span>⏰ Live running status</span><span>↗ Share via browser</span></div></div>'+
+ '<div class="gr-columns"><span>Arrival</span><span>Journey · '+safe(dateLabel)+'</span><span>Departure</span></div>'+
+ '<div class="gr-stops">'+(rows||'<div class="gr-muted">No timetable stops are available for this train. Try loading the all-India timetable in Settings.</div>')+'</div>'+
+ '<div class="gr-status"><strong>'+(currentIndex>=0?'At '+safe(currentName||stops[currentIndex]?.station_name||"current station"):safe(status))+'</strong><div class="gr-muted">'+(Number.isFinite(delay)?'Reported delay: '+delay+' min · ':'')+(live?.lastUpdatedAt?'Updated '+safe(live.lastUpdatedAt):'Live update time not provided')+'</div>'+
+ (liveError?'<div class="gr-muted">Live status unavailable: '+safe(liveError.message||liveError)+'. Timetable shown where available.</div>':(!live?'':'') )+
+ (currentIndex<0&&currentName?'<div class="gr-muted">Reported location: '+safe(currentName)+' · Station could not be matched to the timetable.</div>':'')+
+ '</div></section>';
 }
+
 function ticketMini(b){let t=state.trains.find(x=>x.id===b.trainId)||b.train||{};return `<div style="margin-top:12px"><b>${esc(t.number)} · ${esc(t.name)}</b><p class="muted">${esc(t.from)} → ${esc(t.to)}<br>${esc(b.ref||b.pnr)} · saved on this device</p></div>`}
 function goto(p){page=p;searchResults=[];render();window.scrollTo({top:0,behavior:"smooth"});if(p==="stations")setTimeout(loadStationsWeather,10);if(p==="search")setTimeout(bindStationLookup,10)}
 let stationLookupTimer;
