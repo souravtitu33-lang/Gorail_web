@@ -86,7 +86,6 @@ function shell(){
    <div class="nav-title">${admin?"Administration":"Passenger"}</div>
    ${navItems(admin).map(n=>`<button class="nav ${page===n[0]?"active":""}" onclick="goto('${n[0]}')">${n[1]} <span>${n[2]}</span></button>`).join("")}
    ${!admin?`<div class="nav-title">More</div>
-   <button class="nav" onclick="goto('seat')">💺 <span>Seat Availability</span></button>
    <button class="nav" onclick="goto('special')">⭐ <span>Special Trains</span></button>
    <button class="nav" onclick="goto('emergency')">🚨 <span>Emergency Help</span></button>`:""}
  </aside><main class="main">${renderPage()}</main></div>
@@ -113,7 +112,6 @@ function renderPage(){
   case "food": return foodPage();
   case "complaints": return complaintsPage();
   case "profile": return profilePage();
-  case "seat": return seatPage();
   case "special": return specialPage();
   case "emergency": return emergencyPage();
   case "manage-trains": return manageTrainsPage();
@@ -125,7 +123,7 @@ function dashboard(){
  </div>
  <div class="quick">${[
  ["🔢","PNR Status","pnr"],
- ["💺","Seat Availability","seat"],["🚉","Station Info","stations"],["🍱","Order Food","food"],["🚨","Emergency Help","emergency"]
+ ["🚉","Station Info","stations"],["🍱","Order Food","food"],["🚨","Emergency Help","emergency"]
  ].map(x=>`<div class="card" onclick="goto('${x[2]}')"><div class="icon">${x[0]}</div><b>${x[1]}</b></div>`).join("")}</div>
  <div class="card" style="margin-top:20px"><h3>⏱️ Tatkal booking opens in <span class="muted" style="font-weight:400">(live IST clock)</span></h3>
  <div class="tatkal-box"><div class="tatkal-item">AC classes (10:00 AM)<div class="t" id="tatkalAc">--:--:--</div></div><div class="tatkal-item">Non-AC classes (11:00 AM)<div class="t" id="tatkalNonAc">--:--:--</div></div></div></div>
@@ -240,10 +238,6 @@ function adminComplaints(){return pageTitle("Manage Complaints","Review and upda
  +`<div class="card"><table class="table"><thead><tr><th>Subject</th><th>Message</th><th>Status</th><th>Action</th></tr></thead><tbody>${state.complaints.map(c=>`<tr><td>${esc(c.subject)}</td><td>${esc(c.message)}</td><td><span class="pill ${c.status==="Resolved"?"ok":"warn"}">${c.status}</span></td><td><button class="btn small success" onclick="resolveComplaint('${c.id}')">Resolve</button></td></tr>`).join("")||`<tr><td colspan="4" class="empty">No complaints.</td></tr>`}</tbody></table></div>`}
 function profilePage(){return pageTitle("Profile","Manage your passenger account")
  +`<div class="card"><div class="form-grid"><div class="field"><label>Name</label><input id="pname" value="${esc(session.name)}"></div><div class="field"><label>Phone</label><input id="pphone" value="${esc(session.phone||"")}"></div><div class="field"><label>Email</label><input value="${esc(session.email)}" disabled></div></div><button class="btn primary" style="margin-top:14px" onclick="saveProfile()">Save Profile</button></div>`}
-function seatPage(){return pageTitle("Seat Availability","Check class-wise availability",liveBadge())
- +`<div class="card"><div class="field"><label>Train</label><select id="seatTrain">${state.trains.map(t=>`<option value="${t.id}">${t.number} · ${esc(t.name)}</option>`).join("")}</select></div>
- ${hasLiveData()?`<div class="form-grid" style="margin-top:12px"><div class="field"><label>From station code</label><input id="seatFrom" placeholder="e.g. NDLS"></div><div class="field"><label>To station code</label><input id="seatTo" placeholder="e.g. HWH"></div><div class="field"><label>Class</label><select id="seatClass"><option>SL</option><option>3A</option><option>2A</option><option>1A</option></select></div><div class="field"><label>Date</label><input id="seatDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div></div>`:""}
- <button class="btn primary" style="margin-top:12px" onclick="showSeats()">Check Availability</button><div id="seatOut" style="margin-top:18px"></div></div>`}
 function specialPage(){return pageTitle("Special Trains","Special-service data is not connected yet.")+
  '<div class="card"><div class="notice warn">GoRail does not currently have a verified special-train feed. Regular demo trains are not labeled as special services.</div><p class="muted">Use Train Enquiry to search the available timetable, and verify special services with an official railway source before travelling.</p><button class="btn primary" onclick="goto(\'search\')">Search timetable</button></div>'}
 
