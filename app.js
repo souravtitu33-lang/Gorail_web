@@ -641,7 +641,19 @@ goRailAuth.onAuthStateChanged(async user=>{
   if(token.claims.admin===true || token.claims.role==="admin") role="admin";
  }catch(_e){}
  session={id:user.uid,name:savedUser.name||user.displayName||email.split("@")[0],email,phone:savedUser.phone||"",role};
+ let isNewBrowser=false;
+ const deviceKey="gorail_seen_device_"+user.uid;
+ try{
+  if(localStorage.getItem(deviceKey)!=="1"){
+   isNewBrowser=true;
+   localStorage.setItem(deviceKey,"1");
+  }
+ }catch(_e){}
  save();render();
+ if(isNewBrowser){
+  modal='<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>🔐 New device sign-in</h2><button class="close" onclick="closeModal()">×</button></div><div class="notice warn">This browser has not signed in to your GoRail account before.</div><p>If you just logged in on a new phone or computer, you can continue using GoRail.</p><p><b>If this wasn't you:</b> change your account password and secure your email account.</p><button class="btn primary" style="width:100%" onclick="closeModal()">Continue</button></div></div>';
+  drawModal();
+ }
  setTimeout(()=>autoLoadRailDataset(),600);
 });
 render();drawModal();
