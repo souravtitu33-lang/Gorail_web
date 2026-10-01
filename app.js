@@ -655,7 +655,7 @@ goRailAuth.onAuthStateChanged(async user=>{
  }catch(_e){}
  save();render();
  if(isNewBrowser){
-  modal='<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>🔐 New device sign-in</h2><button class="close" onclick="closeModal()">×</button></div><div class="notice warn">This browser has not signed in to your GoRail account before.</div><p>If you just logged in on a new phone or computer, you can continue using GoRail.</p><p><b>If this wasn't you:</b> change your account password and secure your email account.</p><button class="btn primary" style="width:100%" onclick="closeModal()">Continue</button></div></div>';
+  modal='<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>🔐 New device sign-in</h2><button class="close" onclick="closeModal()">×</button></div><div class="notice warn">This browser has not signed in to your GoRail account before.</div><p>If you just logged in on a new phone or computer, you can continue using GoRail.</p><p><b>If this was not you:</b> change your account password and secure your email account.</p><button class="btn primary" style="width:100%" onclick="closeModal()">Continue</button></div></div>';
   drawModal();
  }
  setTimeout(()=>autoLoadRailDataset(),600);
