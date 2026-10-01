@@ -70,8 +70,8 @@ function navItems(admin=false){
  return admin?[
   ["dashboard","📊","Dashboard"],["manage-trains","🚆","Manage Trains"],["complaints","🛠️","Complaints"]
  ]:[
-  ["dashboard","🏠","Home"],["search","🔎","Train Enquiry"],["map","🗺️","Live Map"],["bookings","🎫","My Tickets"],["pnr","🔢","PNR Status"],
-  ["live","📍","Live Status"],["stations","🚉","Station Info"],["food","🍱","Order Food"],["complaints","📝","Complaints"],
+  ["dashboard","🏠","Home"],["map","🗺️","Live Map"],["pnr","🔢","PNR Status"],
+  ["stations","🚉","Station Info"],["food","🍱","Order Food"],["complaints","📝","Complaints"],
   ["profile","👤","Profile"]
  ]}
 function shell(){
@@ -108,10 +108,7 @@ function pageTitle(title,sub,actions=""){return `<div class="page-title"><div><h
 function renderPage(){
  switch(page){
   case "dashboard": return dashboard();
-  case "search": return searchPage();
-  case "bookings": return bookingsPage();
   case "pnr": return pnrPage();
-  case "live": return livePage();
   case "map": return mapPage();
   case "stations": return stationsPage();
   case "food": return foodPage();
@@ -127,17 +124,15 @@ function renderPage(){
 function dashboard(){
  if(session.role==="admin") return adminDashboard();
  return `<div class="hero"><h1>Welcome back, ${esc(session.name||"Passenger")} 👋</h1><p>Plan your journey, check train availability, track trains and manage tickets.</p>
- <button class="btn" onclick="goto('search')">🔎 Search Trains</button></div>
+ </div>
  <div class="quick">${[
- ["🔎","Train Enquiry","search"],["🎫","My Tickets","bookings"],["🔢","PNR Status","pnr"],["📍","Live Status","live"],
+ ["🔢","PNR Status","pnr"],
  ["💺","Seat Availability","seat"],["🚉","Station Info","stations"],["🍱","Order Food","food"],["🚨","Emergency Help","emergency"]
  ].map(x=>`<div class="card" onclick="goto('${x[2]}')"><div class="icon">${x[0]}</div><b>${x[1]}</b></div>`).join("")}</div>
  <div class="card" style="margin-top:20px"><h3>⏱️ Tatkal booking opens in <span class="muted" style="font-weight:400">(live IST clock)</span></h3>
  <div class="tatkal-box"><div class="tatkal-item">AC classes (10:00 AM)<div class="t" id="tatkalAc">--:--:--</div></div><div class="tatkal-item">Non-AC classes (11:00 AM)<div class="t" id="tatkalNonAc">--:--:--</div></div></div></div>
  <div style="margin-top:20px" class="grid g3">
- <div class="card"><h3>Saved enquiry</h3><p class="muted">Quotes stored on this device. Not IRCTC tickets.</p>${state.bookings.filter(b=>b.userId===session.id&&b.status!=="Removed").slice(0,1).map(ticketMini).join("")||"<div class='empty'>No saved enquiries</div>"}</div>
- <div class="card"><h3>Smart travel tools</h3><p>Compare fares, check route stops, coach position and platform information.</p><div class="actions"><button class="btn small" onclick="goto('fare')">Fare</button><button class="btn small" onclick="goto('special')">Special trains</button></div></div>
-</div>`;
+ <div class="card"><h3>Smart travel tools</h3></div>`;
 }
 function adminDashboard(){return pageTitle("Railway Operations & Management Dashboard","Quick Admin Operations")
  +`<div class="grid g4">${[
