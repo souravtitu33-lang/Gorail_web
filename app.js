@@ -398,15 +398,19 @@ async function login(){let email=$("#lemail").value.trim().toLowerCase(),pass=$(
  try{
   const cred=await goRailAuth.signInWithEmailAndPassword(email,pass);
   if(!cred.user.emailVerified){
-   await cred.user.sendEmailVerification();
    await goRailAuth.signOut();
-   toast("Please verify your email using the link sent to your Gmail before logging in.","warn");
+   modal='<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>Verify your email</h2><button class="close" onclick="closeModal()">×</button></div><div class="notice warn">Your GoRail account is not verified yet. Access is available after you verify your email address.</div><p>Open the verification email sent during registration and tap its verification link. Then return here and log in again.</p><p class="muted">If you cannot find it, check your Spam folder. Avoid repeatedly requesting emails; Firebase may temporarily block requests.</p><button class="btn primary" style="width:100%" onclick="closeModal()">I understand</button></div></div>';
+   drawModal();
    return;
   }
   const savedUser=state.users.find(x=>String(x.email).toLowerCase()===email)||{};
   session={id:cred.user.uid,name:savedUser.name||cred.user.displayName||email.split("@")[0],email,phone:savedUser.phone||"",role:"passenger"};
   save();goto("dashboard");
- }catch(e){toast(e.code==="auth/user-not-found"||e.code==="auth/wrong-password"||e.code==="auth/invalid-credential"?"Invalid Gmail or password.":e.message||"Login failed.","warn")}
+ }catch(e){
+  const code=e&&e.code;
+  const message=code==="auth/user-not-found"||code==="auth/wrong-password"||code==="auth/invalid-credential"?"Invalid Gmail or password.":code==="auth/too-many-requests"?"Firebase has temporarily blocked sign-in attempts from this device due to too many requests. Wait and try again later; do not keep retrying.":code==="auth/network-request-failed"?"Network error. Check your internet connection and try again.":e.message||"Login failed.";
+  toast(message,"warn");
+ }
 }
 async function logout(){try{await goRailAuth.signOut()}catch(e){} session=null;render()}
 function registerModal(){modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>Create Account</h2><button class="close" onclick="closeModal()">×</button></div><div class="form-grid"><div class="field"><label>Name</label><input id="rname"></div><div class="field"><label>Phone</label><input id="rphone"></div><div class="field"><label>Email</label><input id="remail"></div><div class="field"><label>Password</label><input id="rpass" type="password"></div></div><button class="btn primary" style="margin-top:15px" onclick="register()">Register</button></div></div>`;drawModal()}
@@ -424,7 +428,7 @@ async function register(){let name=$("#rname").value.trim(),email=$("#remail").v
   await goRailAuth.signOut();
   closeModal();
   toast("Account created. Verify your Gmail using the link we sent, then log in.","success");
- }catch(e){toast(e.code==="auth/email-already-in-use"?"This Gmail is already registered. Please log in.":e.code==="auth/weak-password"?"Choose a stronger password.":e.message||"Registration failed.","warn")}
+ }catch(e){const code=e&&e.code;toast(code==="auth/email-already-in-use"?"This Gmail is already registered. Please log in.":code==="auth/weak-password"?"Choose a stronger password.":code==="auth/too-many-requests"?"Firebase has temporarily blocked account requests from this device. Wait before trying again.":e.message||"Registration failed.","warn")}
 }
 function closeModal(){modal=null;drawModal()}
 function drawModal(){let old=$("#modalRoot");if(old)old.remove();if(modal){let d=document.createElement("div");d.id="modalRoot";d.innerHTML=modal;document.body.appendChild(d)}}
