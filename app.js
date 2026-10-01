@@ -38,10 +38,10 @@ function sourceBadge(kind){
 }
 function requireAdmin(){ if(session?.role==="admin") return true; toast("Admin actions need an admin claim on the signed-in account.","warn"); return false; }
 function settingsModal(){let gk=getGMapsKey();modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>⚙️ Live Data Settings</h2><button class="close" onclick="closeModal()">×</button></div>
- <p class="muted">GoRail uses RailRadar for live train status, PNR enquiry, and seat availability/vacancy through a secure server-side proxy. Add your API key as <b>RAILRADAR_API_KEY</b> in your Vercel project Environment Variables. Never place the key in this public repository or browser storage. Live features require an active RailRadar plan and API quota.</p>
+ <p class="muted">GoRail uses RailRadar for live train status and PNR enquiry through a secure server-side proxy. Add your API key as <b>RAILRADAR_API_KEY</b> in your Vercel project Environment Variables. Never place the key in this public repository or browser storage. Live features require an active RailRadar plan and API quota.</p>
 
 
- <div class="notice" style="margin-top:16px">Live train status, PNR, and seat vacancy require the server-side RailRadar key. Live station weather works with <b>no key</b> through the free Open-Meteo API.</div>
+ <div class="notice" style="margin-top:16px">Live train status and PNR enquiry require the server-side RailRadar key. Live station weather works with <b>no key</b> through the free Open-Meteo API.</div>
  <hr style="margin:20px 0;border:none;border-top:1px solid var(--line)">
  <h3>🗺️ Google Maps</h3>
  <p class="muted">Add a Google Maps JavaScript API key to use real Google Maps on the Live Map page. Without one, GoRail automatically uses free OpenStreetMap maps instead — the map always works either way.</p>
@@ -119,7 +119,7 @@ function renderPage(){
  }}
 function dashboard(){
  if(session.role==="admin") return adminDashboard();
- return `<div class="hero"><h1>Welcome back, ${esc(session.name||"Passenger")} 👋</h1><p>Plan your journey, check train availability, track trains and manage tickets.</p>
+ return `<div class="hero"><h1>Welcome back, ${esc(session.name||"Passenger")} 👋</h1><p>Plan your journey and track your train.</p>
  </div>
  <div class="quick">${[
  ["🔢","PNR Status","pnr"],
@@ -483,29 +483,6 @@ async function calcFare(){
  }
  out.innerHTML=`<div class="notice warn">Enter From and To station codes to request a live fare. GoRail does not invent a fare.</div>`;
 }
-function seatMap(available,total=48){let cells=[];for(let i=1;i<=total;i++){let taken=i>available;let rac=!taken&&i>available-4;cells.push(`<div class="seat ${taken?"taken":rac?"rac":""}">${i}</div>`)}return `<div class="coach-map">${cells.join("")}</div>`}
-async function showSeats(){
- let t=state.trains.find(x=>x.id===$("#seatTrain").value),out=$("#seatOut");
- let fromC=$("#seatFrom")?.value?.trim().toUpperCase(),toC=$("#seatTo")?.value?.trim().toUpperCase(),cls=$("#seatClass")?.value,date=$("#seatDate")?.value;
- if(!t){out.innerHTML=`<div class="notice warn">Select a train.</div>`;return}
- if(!fromC||!toC||!cls||!date){out.innerHTML=`<div class="notice warn">Enter source and destination station codes, class, and journey date.</div>`;return}
- out.innerHTML=`<div class="card">Checking live seat availability and vacancy…</div>`;
- try{
-  const r=await GoRailAPI.seatVacancy({trainNo:t.number,fromStationCode:fromC,toStationCode:toC,classType:cls,date});
-  const d=r?.data||r,days=d?.avlDayList||d?.availability||d?.days||[];
-  const cards=days.map(day=>{
-   const status=String(day?.availablityStatus||day?.availabilityStatus||day?.status||day?.available||"Not available");
-   const match=status.match(/AVAILABLE[- ]?(\d+)/i),vacant=match?Number(match[1]):null;
-   const badge=vacant!==null?`<span class="pill ok">${vacant} seats/berths available</span>`:`<span class="pill ${/RAC/i.test(status)||/WL|WAIT/i.test(status)?"warn":"red"}">${/RAC/i.test(status)?"RAC / shared berth":/WL|WAIT/i.test(status)?"Waitlist":"Unavailable"}</span>`;
-   return `<div class="card"><div class="muted">${esc(day?.availablityDate||day?.availabilityDate||day?.date||"")}</div><h3>${esc(status)}</h3>${badge}</div>`;
-  }).join("");
-  out.innerHTML=`<div class="card"><div class="actions" style="justify-content:space-between"><h3 style="margin:0">${esc(d?.trainName||t.name)} · ${esc(d?.trainNumber||t.number)}</h3><span class="pill ok">LIVE</span></div>
-   <p>${esc(d?.sourceStation||fromC)} → ${esc(d?.destinationStation||toC)} · ${esc(d?.classCode||cls)} · Quota ${esc(d?.quotaCode||"GN")}</p></div>
-   <div class="grid g3" style="margin-top:12px">${cards||`<div class="card"><pre style="white-space:pre-wrap">${esc(JSON.stringify(d,null,2)).slice(0,1800)}</pre></div>`}</div>
-   <p class="muted">Seat vacancy is shown from the live availability status. Availability can change before booking.</p>`;
- }catch(e){out.innerHTML=`<div class="notice warn">RailRadar seat lookup failed: ${esc(e.message||e)}. Check train number, station codes, date, API access, and quota.</div>`}
-}
-
 function addFood(id){
  const item=(state.food||[]).find(f=>String(f.id)===String(id));if(!item)return toast("Menu item not found.","warn");
  let cart=[];try{cart=JSON.parse(localStorage.getItem("gorail_cart")||"[]")}catch(_e){}
