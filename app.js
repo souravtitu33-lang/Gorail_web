@@ -413,9 +413,11 @@ async function login(){let email=$("#lemail").value.trim().toLowerCase(),pass=$(
  }
 }
 async function logout(){try{await goRailAuth.signOut()}catch(e){} session=null;render()}
-function registerModal(){modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>Create Account</h2><button class="close" onclick="closeModal()">×</button></div><div class="form-grid"><div class="field"><label>Name</label><input id="rname"></div><div class="field"><label>Phone</label><input id="rphone"></div><div class="field"><label>Email</label><input id="remail"></div><div class="field"><label>Password</label><input id="rpass" type="password"></div></div><button class="btn primary" style="margin-top:15px" onclick="register()">Register</button></div></div>`;drawModal()}
+function registerModal(){modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>Create Account</h2><button class="close" onclick="closeModal()">×</button></div><div class="form-grid"><div class="field"><label>Name</label><input id="rname" type="text" autocomplete="name" oninput="this.value=this.value.replace(/[^a-zA-Z ]/g,'')" placeholder="Letters only"></div><div class="field"><label>Phone</label><input id="rphone" type="tel" inputmode="numeric" autocomplete="tel" oninput="this.value=this.value.replace(/[^0-9]/g,'')" placeholder="Numbers only"></div><div class="field"><label>Email</label><input id="remail" type="email" autocomplete="email"></div><div class="field"><label>Password</label><input id="rpass" type="password" autocomplete="new-password"></div></div><button class="btn primary" style="margin-top:15px" onclick="register()">Register</button></div></div>`;drawModal()}
 async function register(){let name=$("#rname").value.trim(),email=$("#remail").value.trim().toLowerCase(),pass=$("#rpass").value,phone=$("#rphone").value.trim();
  if(!name||!email||!pass){toast("Please fill required fields.","warn");return}
+ if(!/^[A-Za-z ]+$/.test(name)){toast("Name can contain letters and spaces only.","warn");return}
+ if(phone&&!/^[0-9]+$/.test(phone)){toast("Phone number can contain digits only.","warn");return}
  if(!isValidEmail(email)){toast("Enter a valid Gmail address ending in @gmail.com.","warn");return}
  if(!isStrongPassword(pass)){toast("Password must be at least 8 characters long.","warn");return}
  try{
