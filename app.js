@@ -230,8 +230,22 @@ function filterStationCards(){const q=($("#stationFilter")?.value||"").trim().to
 
 function loadStationsWeather(){let ss=["Mumbai Central","New Delhi","Bengaluru","Howrah","Hyderabad","Bhubaneswar","Khurda Road","Cuttack"];
  ss.forEach(async(s,i)=>{const w=await stationWeather(s);const el=$("#wx-"+i);if(!el)return;el.innerHTML=w?`<span class="weather-chip">☁️ ${Math.round(w.temp)}°C · ${esc(w.desc)}</span>`:"Weather unavailable";});}
-function foodPage(){return pageTitle("Order Food","Sample menu saved on this device. This does not place a railway catering order.",sourceBadge("device"))
- +`<div class="grid g4">${state.food.map(f=>`<div class="card"><div style="font-size:30px">🍱</div><h3>${esc(f.name)}</h3><div class="muted">${f.cat}</div><div style="font-weight:800;margin:12px 0">₹${f.price}</div><button class="btn primary small" onclick="addFood('${f.id}')">Add</button></div>`).join("")}</div><div class="card" style="margin-top:18px"><h3>Current Food Order</h3><div id="foodCart">No items selected.</div></div>`}
+function foodPage(){
+ let cart=[];try{cart=JSON.parse(localStorage.getItem("gorail_cart")||"[]")}catch(_e){}
+ if(!Array.isArray(cart))cart=[];
+ const menu=state.food||[],total=cart.reduce((sum,x)=>sum+(Number(x.price)||0),0);
+ const orders=Array.isArray(state.foodOrders)?state.foodOrders.filter(o=>o.userId===session.id).slice().reverse():[];
+ return pageTitle("Order Food","Choose food for your train journey and review your order",'<span class="pill warn">Prototype · no Zomato connection</span>')+
+ '<div class="notice warn" style="margin-bottom:14px">Ordering and tracking are a local prototype. No restaurant receives this order, no payment is collected, and no delivery is confirmed until an approved ordering partner is connected.</div>'+
+ '<div class="card"><h3>🚆 Journey details</h3><div class="form-grid"><div class="field"><label>Train number</label><input id="foodTrain" placeholder="e.g. 20917"></div><div class="field"><label>Delivery station</label><input id="foodStation" placeholder="Station name or code"></div><div class="field"><label>Coach</label><input id="foodCoach" placeholder="e.g. B2"></div><div class="field"><label>Seat / berth</label><input id="foodSeat" placeholder="e.g. 36"></div></div><p class="muted" style="margin:8px 0 0">Enter where you want the food delivered on the train.</p></div>'+
+ '<h3 style="margin:18px 0 10px">🍱 Menu</h3><div class="grid g4">'+menu.map(f=>'<div class="card"><div style="font-size:30px">🍱</div><h3>'+esc(f.name)+'</h3><div class="muted">'+esc(f.cat||"Food")+'</div><div style="font-weight:800;margin:12px 0">₹'+Number(f.price||0).toFixed(2)+'</div><button class="btn primary small" onclick="addFood(\''+esc(f.id)+'\')">Add to cart</button></div>').join("")+'</div>'+
+ '<div class="card" style="margin-top:18px"><h3>🛒 Your cart</h3><div id="foodCart">'+(cart.length?cart.map((x,i)=>'<div class="food-cart-row"><span>'+esc(x.name)+'</span><b>₹'+Number(x.price||0).toFixed(2)+'</b><button class="btn small" onclick="removeFood('+i+')">Remove</button></div>').join("")+'<hr><b>Total: ₹'+total.toFixed(2)+'</b>':'<div class="empty">Your cart is empty. Add an item from the menu.</div>')+'</div>'+
+ '<div class="form-grid" style="margin-top:14px"><div class="field"><label>Passenger name</label><input id="foodPassenger" value="'+esc(session.name||"")+'" placeholder="Name"></div><div class="field"><label>Mobile number</label><input id="foodPhone" value="'+esc(session.phone||"")+'" placeholder="10-digit mobile number"></div><div class="field"><label>Delivery date</label><input id="foodDate" type="date" value="'+new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10)+'"></div></div>'+
+ '<button class="btn primary" style="margin-top:14px" onclick="placeFood()">Review &amp; save order request</button></div>'+
+ '<h3 style="margin:20px 0 10px">📦 My food orders</h3><div class="grid g2">'+(orders.map(o=>'<div class="card"><div class="actions" style="justify-content:space-between"><b>Order '+esc(o.id)+'</b><span class="pill warn">'+esc(o.status)+'</span></div><p>'+esc(o.trainNo)+' · '+esc(o.station)+' · Coach '+esc(o.coach||"—")+' / Seat '+esc(o.seat||"—")+'</p><p>'+o.items.map(x=>esc(x.name)+" × "+Number(x.quantity||1)).join(", ")+'</p><b>₹'+Number(o.total||0).toFixed(2)+'</b><div class="muted" style="margin-top:8px">Saved on this device · '+esc(o.createdAt)+'</div><div class="notice" style="margin-top:8px">Tracking is not connected to a restaurant or delivery partner.</div></div>').join("")||'<div class="card empty">No food orders yet.</div>')+'</div>'+
+ '<style>.food-cart-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}.food-cart-row span{flex:1}.food-cart-row b{white-space:nowrap}</style>';
+}
+
 function complaintsPage(){if(session.role==="admin")return adminComplaints();return pageTitle("Complaints & Support","Submit and track passenger complaints",`<button class="btn primary" onclick="complaintModal()">New Complaint</button>`)
  +`<div class="grid g2">${state.complaints.filter(c=>c.userId===session.id).map(c=>`<div class="card"><div class="actions" style="justify-content:space-between"><b>${esc(c.subject)}</b><span class="pill ${c.status==="Resolved"?"ok":"warn"}">${c.status}</span></div><p>${esc(c.message)}</p><small class="muted">${c.date}</small></div>`).join("")||`<div class="card empty">No complaints submitted.</div>`}</div>`}
 function adminComplaints(){return pageTitle("Manage Complaints","Review and update passenger complaints")
@@ -513,8 +527,42 @@ async function showSeats(){
  }catch(e){out.innerHTML=`<div class="notice warn">RailRadar seat lookup failed: ${esc(e.message||e)}. Check train number, station codes, date, API access, and quota.</div>`}
 }
 
-function addFood(id){let f=state.food.find(x=>x.id===id),cart=JSON.parse(localStorage.getItem("gorail_cart")||"[]");cart.push(f);localStorage.setItem("gorail_cart",JSON.stringify(cart));let total=cart.reduce((s,x)=>s+x.price,0);$("#foodCart").innerHTML=cart.map(x=>`<p>${x.name} — ₹${x.price}</p>`).join("")+`<hr><b>Total ₹${total}</b><br><button class="btn primary small" style="margin-top:10px" onclick="placeFood()">Place Order</button>`}
-function placeFood(){localStorage.removeItem("gorail_cart");state.notifications.push({id:"f"+Date.now(),title:"Sample food list saved",body:"Saved on this device. This is not a railway catering order.",date:new Date().toLocaleDateString("en-IN")});save();toast("Sample list saved on this device.");goto("notifications")}
+function addFood(id){
+ const item=(state.food||[]).find(f=>String(f.id)===String(id));if(!item)return toast("Menu item not found.","warn");
+ let cart=[];try{cart=JSON.parse(localStorage.getItem("gorail_cart")||"[]")}catch(_e){}
+ if(!Array.isArray(cart))cart=[];
+ cart.push({id:item.id,name:item.name,price:Number(item.price)||0,cat:item.cat||"Food",quantity:1});
+ try{localStorage.setItem("gorail_cart",JSON.stringify(cart))}catch(_e){return toast("Could not save cart in this browser.","warn")}
+ render();toast(item.name+" added to cart.","success");
+}
+
+function removeFood(index){
+ let cart=[];try{cart=JSON.parse(localStorage.getItem("gorail_cart")||"[]")}catch(_e){}
+ if(!Array.isArray(cart)||index<0||index>=cart.length)return;
+ cart.splice(index,1);try{localStorage.setItem("gorail_cart",JSON.stringify(cart))}catch(_e){toast("Could not update cart.","warn");return}
+ render();
+}
+function placeFood(){
+ let cart=[];try{cart=JSON.parse(localStorage.getItem("gorail_cart")||"[]")}catch(_e){}
+ if(!Array.isArray(cart)||!cart.length)return toast("Add at least one food item to your cart.","warn");
+ const trainNo=$("#foodTrain")?.value.trim()||"",station=$("#foodStation")?.value.trim()||"",coach=$("#foodCoach")?.value.trim()||"",seat=$("#foodSeat")?.value.trim()||"",passenger=$("#foodPassenger")?.value.trim()||"",phone=$("#foodPhone")?.value.trim()||"",date=$("#foodDate")?.value||"";
+ if(!/^\\d{5}$/.test(trainNo))return toast("Enter a valid 5-digit train number.","warn");
+ if(!station)return toast("Enter your delivery station.","warn");
+ if(!coach||!seat)return toast("Enter coach and seat/berth details.","warn");
+ if(!passenger)return toast("Enter passenger name.","warn");
+ if(!/^[6-9]\\d{9}$/.test(phone.replace(/\\D/g,"")))return toast("Enter a valid 10-digit Indian mobile number.","warn");
+ if(!date)return toast("Select the delivery date.","warn");
+ const items=cart.map(x=>({id:x.id,name:String(x.name||"Food"),price:Number(x.price)||0,quantity:1}));
+ const total=items.reduce((sum,x)=>sum+x.price,0),id="GRF"+Date.now().toString(36).toUpperCase();
+ if(!Array.isArray(state.foodOrders))state.foodOrders=[];
+ const order={id,userId:session.id,trainNo,station,coach,seat,passenger,phone,date,items,total,status:"Request saved (demo)",createdAt:new Date().toLocaleString("en-IN"),tracking:[{status:"Request saved (demo)",time:new Date().toLocaleString("en-IN"),note:"Saved locally; not sent to a restaurant."}]};
+ state.foodOrders.push(order);
+ if(!save()){state.foodOrders.pop();return}
+ try{localStorage.removeItem("gorail_cart")}catch(_e){}
+ state.notifications.push({id:"food-"+id,title:"Food order request saved",body:id+" saved locally. No restaurant or delivery partner has received it.",date:new Date().toLocaleDateString("en-IN")});
+ save();render();toast("Order request saved locally. No food has been ordered.","warn");
+}
+
 function complaintModal(){modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>New Complaint</h2><button class="close" onclick="closeModal()">×</button></div><div class="field"><label>Subject</label><input id="csub"></div><div class="field" style="margin-top:12px"><label>Message</label><textarea id="cmsg"></textarea></div><button class="btn primary" style="margin-top:14px" onclick="submitComplaint()">Submit Complaint</button></div></div>`;drawModal()}
 function submitComplaint(){let subject=$("#csub").value.trim(),message=$("#cmsg").value.trim();if(!subject||!message)return toast("Enter subject and message.");state.complaints.push({id:"c"+Date.now(),userId:session.id,subject,message,status:"Open",date:new Date().toLocaleDateString("en-IN")});save();closeModal();render()}
 function resolveComplaint(id){if(!requireAdmin())return;let c=state.complaints.find(x=>x.id===id);if(c)c.status="Resolved";save();render()}
