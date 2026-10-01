@@ -68,7 +68,7 @@ async function loadFullDataset(){
 }
 function navItems(admin=false){
  return admin?[
-  ["dashboard","📊","Dashboard"],["manage-trains","🚆","Manage Trains"],["complaints","🛠️","Complaints"],["broadcast","📢","Broadcast Notice"]
+  ["dashboard","📊","Dashboard"],["manage-trains","🚆","Manage Trains"],["complaints","🛠️","Complaints"]
  ]:[
   ["dashboard","🏠","Home"],["search","🔎","Train Enquiry"],["map","🗺️","Live Map"],["bookings","🎫","My Tickets"],["pnr","🔢","PNR Status"],
   ["live","📍","Live Status"],["stations","🚉","Station Info"],["food","🍱","Order Food"],["complaints","📝","Complaints"],
