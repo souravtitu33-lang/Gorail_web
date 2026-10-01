@@ -13,8 +13,6 @@ const seed={
   ],
   bookings:[],
   complaints:[],
-  notifications:[{id:"n1",title:"Welcome to GoRail",body:"Search trains, check availability and manage your journey from one place.",date:"Today"}],
-  broadcasts:[],
   food:[
     {id:"f1",name:"Veg Thali",price:120,cat:"Meal"},{id:"f2",name:"Paneer Roll",price:90,cat:"Snacks"},
     {id:"f3",name:"Masala Tea",price:25,cat:"Beverage"},{id:"f4",name:"Water Bottle",price:20,cat:"Beverage"}
@@ -74,7 +72,7 @@ function navItems(admin=false){
  ]:[
   ["dashboard","🏠","Home"],["search","🔎","Train Enquiry"],["map","🗺️","Live Map"],["bookings","🎫","My Tickets"],["pnr","🔢","PNR Status"],
   ["live","📍","Live Status"],["stations","🚉","Station Info"],["food","🍱","Order Food"],["complaints","📝","Complaints"],
-  ["notifications","🔔","Notifications"],["profile","👤","Profile"]
+  ["profile","👤","Profile"]
  ]}
 function shell(){
  const admin=session?.role==="admin";
@@ -82,7 +80,6 @@ function shell(){
    ${liveBadge()}
    <button class="btn small theme-toggle" title="Toggle dark mode" onclick="toggleTheme()">${document.documentElement.getAttribute("data-theme")==="dark"?"☀️":"🌙"}</button>
    <button class="btn small gear" title="Live data settings" onclick="settingsModal()">⚙️</button>
-   <button class="btn small" onclick="goto('notifications')">🔔</button>
    <div class="avatar">${esc((session?.name||"G").slice(0,1).toUpperCase())}</div>
    <button class="btn small" onclick="logout()">Logout</button></div></header>
  <div class="layout"><aside class="sidebar">
@@ -119,14 +116,12 @@ function renderPage(){
   case "stations": return stationsPage();
   case "food": return foodPage();
   case "complaints": return complaintsPage();
-  case "notifications": return notificationsPage();
   case "profile": return profilePage();
   case "fare": return farePage();
   case "seat": return seatPage();
   case "special": return specialPage();
   case "emergency": return emergencyPage();
   case "manage-trains": return manageTrainsPage();
-  case "broadcast": return broadcastPage();
   default:return dashboard();
  }}
 function dashboard(){
@@ -142,13 +137,13 @@ function dashboard(){
  <div style="margin-top:20px" class="grid g3">
  <div class="card"><h3>Saved enquiry</h3><p class="muted">Quotes stored on this device. Not IRCTC tickets.</p>${state.bookings.filter(b=>b.userId===session.id&&b.status!=="Removed").slice(0,1).map(ticketMini).join("")||"<div class='empty'>No saved enquiries</div>"}</div>
  <div class="card"><h3>Smart travel tools</h3><p>Compare fares, check route stops, coach position and platform information.</p><div class="actions"><button class="btn small" onclick="goto('fare')">Fare</button><button class="btn small" onclick="goto('special')">Special trains</button></div></div>
- <div class="card"><h3>Latest notice</h3><p>${esc(state.broadcasts.at(-1)?.message||"No new railway notice.")}</p></div></div>`;
+</div>`;
 }
 function adminDashboard(){return pageTitle("Railway Operations & Management Dashboard","Quick Admin Operations")
  +`<div class="grid g4">${[
- ["🚆","Total Trains",state.trains.length],["🎫","Bookings",state.bookings.length],["📝","Complaints",state.complaints.length],["📢","Notices",state.broadcasts.length]
+ ["🚆","Total Trains",state.trains.length],["🎫","Bookings",state.bookings.length],["📝","Complaints",state.complaints.length]
  ].map(x=>`<div class="card"><div style="font-size:26px">${x[0]}</div><div class="muted">${x[1]}</div><div class="stat">${x[2]}</div></div>`).join("")}</div>
- <div class="card" style="margin-top:18px"><h3>Quick Admin Operations</h3><div class="actions" style="margin-top:14px"><button class="btn primary" onclick="goto('manage-trains')">Manage Trains</button><button class="btn" onclick="goto('complaints')">Complaints</button><button class="btn" onclick="goto('broadcast')">Broadcast Notice</button></div></div>`}
+ <div class="card" style="margin-top:18px"><h3>Quick Admin Operations</h3><div class="actions" style="margin-top:14px"><button class="btn primary" onclick="goto('manage-trains')">Manage Trains</button><button class="btn" onclick="goto('complaints')">Complaints</button></div></div>`}
 function searchPage(){
   const loaded = railDatasetLoaded();
   const stationOptions = (ALL_STATIONS.length ? ALL_STATIONS : STATIONS_DB).map(s => '<option value="' + esc(s.name) + '">' + esc(s.code || "") + '</option>').join("");
@@ -250,8 +245,6 @@ function complaintsPage(){if(session.role==="admin")return adminComplaints();ret
  +`<div class="grid g2">${state.complaints.filter(c=>c.userId===session.id).map(c=>`<div class="card"><div class="actions" style="justify-content:space-between"><b>${esc(c.subject)}</b><span class="pill ${c.status==="Resolved"?"ok":"warn"}">${c.status}</span></div><p>${esc(c.message)}</p><small class="muted">${c.date}</small></div>`).join("")||`<div class="card empty">No complaints submitted.</div>`}</div>`}
 function adminComplaints(){return pageTitle("Manage Complaints","Review and update passenger complaints")
  +`<div class="card"><table class="table"><thead><tr><th>Subject</th><th>Message</th><th>Status</th><th>Action</th></tr></thead><tbody>${state.complaints.map(c=>`<tr><td>${esc(c.subject)}</td><td>${esc(c.message)}</td><td><span class="pill ${c.status==="Resolved"?"ok":"warn"}">${c.status}</span></td><td><button class="btn small success" onclick="resolveComplaint('${c.id}')">Resolve</button></td></tr>`).join("")||`<tr><td colspan="4" class="empty">No complaints.</td></tr>`}</tbody></table></div>`}
-function notificationsPage(){return pageTitle("Notifications","Journey and railway notices")
- +`<div class="grid g2">${[...state.notifications,...state.broadcasts.map((b,i)=>({id:"b"+i,title:"Railway Notice",body:b.message,date:b.date}))].reverse().map(n=>`<div class="card"><h3>🔔 ${esc(n.title)}</h3><p>${esc(n.body)}</p><small class="muted">${esc(n.date)}</small></div>`).join("")}</div>`}
 function profilePage(){return pageTitle("Profile","Manage your passenger account")
  +`<div class="card"><div class="form-grid"><div class="field"><label>Name</label><input id="pname" value="${esc(session.name)}"></div><div class="field"><label>Phone</label><input id="pphone" value="${esc(session.phone||"")}"></div><div class="field"><label>Email</label><input value="${esc(session.email)}" disabled></div></div><button class="btn primary" style="margin-top:14px" onclick="saveProfile()">Save Profile</button></div>`}
 function farePage(){return pageTitle("Fare Enquiry","Estimate fare using the same train/class selection logic",liveBadge())
@@ -268,10 +261,6 @@ function emergencyPage(){return pageTitle("Emergency Help","Quick-access railway
  +`<div class="grid g3">${[["🚨","Railway Security","139"],["🏥","Medical Emergency","112"],["📞","Railway Helpline","139"],["🛡️","RPF","182"],["🔥","Fire Emergency","101"],["ℹ️","Railway Enquiry","139"]].map(x=>`<div class="card"><div style="font-size:30px">${x[0]}</div><h3>${x[1]}</h3><p class="muted">Emergency contact</p><a class="btn primary" href="tel:${x[2]}">Call ${x[2]}</a></div>`).join("")}</div>`}
 function manageTrainsPage(){return pageTitle("Manage Trains","Add, edit and delete train records",`<button class="btn primary" onclick="trainModal()">+ Add Train</button>`)
  +`<div class="card"><table class="table"><thead><tr><th>Train</th><th>Route</th><th>Departure</th><th>Arrival</th><th>Seats</th><th>Action</th></tr></thead><tbody>${state.trains.map(t=>`<tr><td><b>${t.number}</b><br>${esc(t.name)}</td><td>${esc(t.from)} → ${esc(t.to)}</td><td>${t.dep}</td><td>${t.arr}</td><td>${t.seats}</td><td><button class="btn small" onclick="trainModal('${t.id}')">Edit</button> <button class="btn danger small" onclick="deleteTrain('${t.id}')">Delete</button></td></tr>`).join("")}</tbody></table></div>`}
-function broadcastPage(){return pageTitle("Broadcast Notice","Send a notice to passenger notification feeds")
- +`<div class="card"><div class="field"><label>Notice</label><textarea id="broadcastText" placeholder="Enter railway notice..."></textarea></div><button class="btn primary" style="margin-top:12px" onclick="sendBroadcast()">Broadcast Notice</button></div>
- <div class="card" style="margin-top:18px"><h3>Previous notices</h3>${state.broadcasts.slice().reverse().map(b=>`<p><b>${b.date}</b> — ${esc(b.message)}</p>`).join("")||"<p class='muted'>No notices.</p>"}</div>`}
-
 function mapPage(){
  const loaded=railDatasetLoaded();
  const stations=(ALL_STATIONS||[]).slice(0,10000);
@@ -448,8 +437,8 @@ function confirmBooking(id){
  if(!(t.classes||[]).includes(cls)){toast("Select a valid class.","warn");return}
  const now=Date.now(),ref="ENQ"+now.toString(36).toUpperCase();
  const b={id:"enq"+now,kind:"enquiry",userId:session.id,trainId:id,train:{...t},passenger:{name,age,gender},className:cls,fare:t.fare,ref,status:"Saved enquiry",source:"device",date:new Date().toLocaleDateString("en-IN")};
- state.bookings.push(b);state.notifications.push({id:"n"+now,title:"Enquiry saved",body:ref+" for "+t.name+". Not an IRCTC ticket.",date:b.date});
- if(!save()){state.bookings.pop();state.notifications.pop();return}
+ state.bookings.push(b);
+ if(!save()){state.bookings.pop();return}
  closeModal();toast("Enquiry saved on this device.","success");ticketDetail(b.id);
 }
 
@@ -559,8 +548,7 @@ function placeFood(){
  state.foodOrders.push(order);
  if(!save()){state.foodOrders.pop();return}
  try{localStorage.removeItem("gorail_cart")}catch(_e){}
- state.notifications.push({id:"food-"+id,title:"Food order request saved",body:id+" saved locally. No restaurant or delivery partner has received it.",date:new Date().toLocaleDateString("en-IN")});
- save();render();toast("Order request saved locally. No food has been ordered.","warn");
+ render();toast("Order request saved locally. No food has been ordered.","warn");
 }
 
 function complaintModal(){modal=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>New Complaint</h2><button class="close" onclick="closeModal()">×</button></div><div class="field"><label>Subject</label><input id="csub"></div><div class="field" style="margin-top:12px"><label>Message</label><textarea id="cmsg"></textarea></div><button class="btn primary" style="margin-top:14px" onclick="submitComplaint()">Submit Complaint</button></div></div>`;drawModal()}
@@ -593,7 +581,6 @@ function saveTrain(id){
 }
 
 function deleteTrain(id){if(!requireAdmin())return;if(!confirm("Delete this train?"))return;state.trains=state.trains.filter(t=>t.id!==id);save();render()}
-function sendBroadcast(){if(!requireAdmin())return;let m=$("#broadcastText").value.trim();if(!m)return toast("Enter a notice.");state.broadcasts.push({id:"br"+Date.now(),message:m,date:new Date().toLocaleDateString("en-IN")});state.notifications.push({id:"bn"+Date.now(),title:"Railway Notice",body:m,date:new Date().toLocaleDateString("en-IN")});save();toast("Notice broadcasted.");render()}
 let autoRailLoadPromise=null;
 async function autoLoadRailDataset(){
  if(railDatasetLoaded()) return true;
