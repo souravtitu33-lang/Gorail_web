@@ -22,14 +22,15 @@
 // Fallback: DataMeet railways dataset (CC0) for resilience.
 const RAIL_STATIONS_URLS = [
   "https://raw.githubusercontent.com/prasenjit-27/Indian-Railway-Data/main/stations.json",
-  "https://raw.githubusercontent.com/datameet/railways/master/stations.json"
+  "https://raw.githubusercontent.com/datameet/railways/master/stations.json",
+  "https://raw.githubusercontent.com/vstflugel/indian-railway-dataset/main/list_of_stations.json"
 ];
 const RAIL_TRAINS_URLS = [
   "https://raw.githubusercontent.com/prasenjit-27/Indian-Railway-Data/main/trains.json",
   "https://raw.githubusercontent.com/datameet/railways/master/trains.json"
 ];
 const RAIL_SCHEDULES_URL = "https://raw.githubusercontent.com/datameet/railways/master/schedules.json";
-const RAIL_CACHE_KEY = "gorail_all_india_index_v5";
+const RAIL_CACHE_KEY = "gorail_all_india_index_v6";
 const RAIL_IDB_NAME = "gorail_railway_data";
 const RAIL_IDB_STORE = "datasets";
 let railLoadPromise = null;
@@ -47,7 +48,7 @@ async function readRailDB(){
   const db=await openRailDB(); if(!db) return null;
   return new Promise((resolve,reject)=>{
     const tx=db.transaction(RAIL_IDB_STORE,"readonly");
-    const req=tx.objectStore(RAIL_IDB_STORE).get("all-india-v2");
+    const req=tx.objectStore(RAIL_IDB_STORE).get("all-india-v3");
     req.onsuccess=()=>{db.close();resolve(req.result||null)};
     req.onerror=()=>{db.close();reject(req.error)};
   });
@@ -56,7 +57,7 @@ async function writeRailDB(value){
   const db=await openRailDB(); if(!db) return false;
   return new Promise((resolve,reject)=>{
     const tx=db.transaction(RAIL_IDB_STORE,"readwrite");
-    tx.objectStore(RAIL_IDB_STORE).put(value,"all-india-v2");
+    tx.objectStore(RAIL_IDB_STORE).put(value,"all-india-v3");
     tx.oncomplete=()=>{db.close();resolve(true)};
     tx.onerror=()=>{db.close();reject(tx.error)};
     tx.onabort=()=>{db.close();reject(tx.error||new Error("IndexedDB write aborted"))};
@@ -89,7 +90,7 @@ function classListFromProps(p){
   return out.length?out:["SL"];
 }
 
-// Loads the full real dataset. Reports progress via onProgress(stage, pct?).
+// Loads and merges public Indian railway datasets. Reports progress via onProgress(stage, pct?).
 async function loadAllIndiaRailData(onProgress){
   if(railLoadPromise) return railLoadPromise;
   railLoadPromise=(async()=>{
