@@ -117,71 +117,109 @@ async function loadAllIndiaRailData(onProgress){
       lon:c[0] ?? p.longitude ?? p.lon, lat:c[1] ?? p.latitude ?? p.lat };
   }).filter(s=>s.code && s.name);
 
-  onProgress?.("Downloading the Indian Railways train master & route schedules…");
-  let tJson=null, trainSource=0;
+  onProgress?.("Downloading train master datasets from multiple sources…");
+  const trainPayloads=[];
   for(const url of RAIL_TRAINS_URLS){
-    try{ const r=await fetch(url); if(r.ok){ tJson=await r.json(); break; } }catch(e){}
-    trainSource++;
-  }
-  if(!tJson) throw new Error("TRAINS_FETCH_FAILED");
-
-  onProgress?.("Indexing trains…");
-  // New dataset: array of rich train objects with completeOrderedRoute.
-  if(Array.isArray(tJson)){
-    ALL_TRAINS_INDEX = tJson.map(t=>({
-      number:String(t.trainNumber||t.train_number||t.number||""), name:t.trainName||t.train_name||t.name||"", type:t.type||"",
-      from:t.source?.code||t.from_station_code||t.source_code||"", from_name:t.source?.name||t.from_station_name||t.source||"",
-      to:t.destination?.code||t.to_station_code||t.destination_code||"", to_name:t.destination?.name||t.to_station_name||t.destination||"",
-      zone:t.zone||"", distance:t.overallDistanceKm||t.distance||0,
-      duration_h:t.duration?.hours ?? t.duration_h ?? 0, duration_m:t.duration?.minutes ?? t.duration_m ?? 0,
-      departure:t.departure||t.source?.departureTime||"", arrival:t.arrival||t.destination?.arrivalTime||"",
-      runningDays:t.runningDays||t.running_days||{}, classes:t.classes||[], __route:t.completeOrderedRoute||t.trainRoute||[]
-    })).filter(t=>t.number&&t.name);
-    ALL_TRAINS_GEOJSON = null;
-  } else {
-    ALL_TRAINS_GEOJSON=tJson;
-    ALL_TRAINS_INDEX=(tJson.features||[]).map(f=>{const p=f.properties;return {number:p.number,name:p.name,from:p.from_station_code,from_name:p.from_station_name,to:p.to_station_code,to_name:p.to_station_name,zone:p.zone,distance:p.distance,duration_h:p.duration_h,duration_m:p.duration_m,departure:p.departure,arrival:p.arrival,classes:classListFromProps(p),type:p.type,__route:[]};}).filter(t=>t.number&&t.name);
-  }
-
-  onProgress?.("Indexing complete train-stop schedules…");
-  let schedules=[];
-  // The primary dataset embeds the complete ordered route inside every train.
-  // This gives GoRail route details without another 96MB download.
-  if(trainSource===0 && Array.isArray(tJson)){
-    for(const t of tJson){
-      const n=String(t.trainNumber||t.number||"").trim();
-      if(!n) continue;
-      const route=t.completeOrderedRoute||t.trainRoute||[];
-      const stops=route.map(s=>{
-        const rawName=String(s.stationName||s.station_name||s.name||"");
-        const code=String(s.stationCode||s.station_code||s.code||((rawName.match(/\s-\s([A-Z0-9]{2,8})$/)||[])[1]||""));
-        return {
-          day:s.journeyDay||s.day,
-          station_code:code,
-          station_name:rawName.replace(/\s-\s[A-Z0-9]{2,8}$/,"")||code,
-          arrival:s.arrivalTime||s.arrives||s.arrival||"",
-          departure:s.departureTime||s.departs||s.departure||"",
-          id:s.sequence||s.sno||s.id,
-          distance:s.distance
-        };
-      });
-      if(stops.length) schedules.push(...stops.map(s=>({...s,train_number:n})));
-    }
-  } else {
-    // DataMeet fallback stores schedules separately.
     try{
-      const schRes = await fetch(RAIL_SCHEDULES_URL);
-      if(schRes.ok) schedules = await schRes.json();
-    }catch(e){}
+      const r=await fetch(url);
+      if(r.ok){
+        const payload=await r.json();
+        if(payload) trainPayloads.push({url,payload});
+      }
+    }catch(e){ console.warn("Rail dataset source unavailable:",url,e); }
   }
-  ALL_TRAIN_SCHEDULES = new Map();
-  for(const stop of (Array.isArray(schedules) ? schedules : [])){
-    const n = String(stop.train_number || "").trim();
+  if(!trainPayloads.length) throw new Error("TRAINS_FETCH_FAILED");
+
+  onProgress?.("Combining train records across datasets…");
+  const trainByNumber=new Map();
+  const embeddedSchedules=[];
+  let geoFallback=null;
+  for(const {payload} of trainPayloads){
+    if(Array.isArray(payload)){
+      for(const t of payload){
+        const number=String(t.trainNumber||t.train_number||t.number||"").trim();
+        const name=t.trainName||t.train_name||t.name||"";
+        if(!number||!name) continue;
+        const route=t.completeOrderedRoute||t.trainRoute||[];
+        const item={
+          number,name,type:t.type||"",
+          from:t.source?.code||t.from_station_code||t.source_code||"",
+          from_name:t.source?.name||t.from_station_name||t.source||"",
+          to:t.destination?.code||t.to_station_code||t.destination_code||"",
+          to_name:t.destination?.name||t.to_station_name||t.destination||"",
+          zone:t.zone||"",distance:t.overallDistanceKm||t.distance||0,
+          duration_h:t.duration?.hours??t.duration_h??0,
+          duration_m:t.duration?.minutes??t.duration_m??0,
+          departure:t.departure||t.source?.departureTime||"",
+          arrival:t.arrival||t.destination?.arrivalTime||"",
+          runningDays:t.runningDays||t.running_days||{},classes:t.classes||[],__route:route
+        };
+        if(!trainByNumber.has(number)||route.length>(trainByNumber.get(number).__route||[]).length) trainByNumber.set(number,item);
+        for(const st of route){
+          const rawName=String(st.stationName||st.station_name||st.name||"");
+          const code=String(st.stationCode||st.station_code||st.code||((rawName.match(/\s-\s([A-Z0-9]{2,8})$/)||[])[1]||""));
+          embeddedSchedules.push({
+            train_number:number,day:st.journeyDay||st.day,station_code:code,
+            station_name:rawName.replace(/\s-\s[A-Z0-9]{2,8}$/,"")||code,
+            arrival:st.arrivalTime||st.arrives||st.arrival||"",
+            departure:st.departureTime||st.departs||st.departure||"",
+            id:st.sequence||st.sno||st.id,distance:st.distance
+          });
+        }
+      }
+    }else{
+      if(!geoFallback) geoFallback=payload;
+      for(const feature of (payload.features||[])){
+        const p=feature.properties||{};
+        const number=String(p.number||p.train_number||"").trim(),name=p.name||p.train_name||"";
+        if(!number||!name) continue;
+        const existing=trainByNumber.get(number);
+        const item={
+          number,name,type:p.type||"",from:p.from_station_code||p.from||"",
+          from_name:p.from_station_name||p.source||"",to:p.to_station_code||p.to||"",
+          to_name:p.to_station_name||p.destination||"",zone:p.zone||"",distance:p.distance||0,
+          duration_h:p.duration_h||0,duration_m:p.duration_m||0,departure:p.departure||"",
+          arrival:p.arrival||"",classes:classListFromProps(p),runningDays:p.runningDays||{},
+          __route:existing?.__route||[],__geoRoute:feature.geometry?.coordinates||[]
+        };
+        if(!existing) trainByNumber.set(number,item);
+        else if(!existing.__geoRoute?.length) existing.__geoRoute=feature.geometry?.coordinates||[];
+      }
+    }
+  }
+  ALL_TRAINS_INDEX=[...trainByNumber.values()];
+  ALL_TRAINS_GEOJSON=geoFallback;
+
+  onProgress?.("Loading station-by-station timetables…");
+  let schedules=embeddedSchedules;
+  try{
+    const schRes=await fetch(RAIL_SCHEDULES_URL);
+    if(schRes.ok){
+      const extra=await schRes.json();
+      if(Array.isArray(extra)) schedules=schedules.concat(extra);
+    }
+  }catch(e){ console.warn("Supplementary station schedules unavailable:",e); }
+  ALL_TRAIN_SCHEDULES=new Map();
+  const scheduleSeen=new Set();
+  for(const stop of (Array.isArray(schedules)?schedules:[])){
+    const n=String(stop.train_number||stop.trainNumber||"").trim();
     if(!n) continue;
-    if(!ALL_TRAIN_SCHEDULES.has(n)) ALL_TRAIN_SCHEDULES.set(n, []);
-    ALL_TRAIN_SCHEDULES.get(n).push({day:stop.day, station_code:stop.station_code, station_name:stop.station_name, arrival:stop.arrival, departure:stop.departure, id:stop.id});
+    const normalized={
+      day:stop.day||stop.journeyDay,
+      station_code:stop.station_code||stop.stationCode||stop.code||"",
+      station_name:stop.station_name||stop.stationName||stop.name||"",
+      arrival:stop.arrival||stop.arrivalTime||stop.arrives||"",
+      departure:stop.departure||stop.departureTime||stop.departs||"",
+      id:stop.id||stop.sequence||stop.sno,
+      distance:stop.distance
+    };
+    const dedupeKey=[n,normalized.id,normalized.station_code,normalized.station_name,normalized.day,normalized.arrival,normalized.departure].join("|");
+    if(scheduleSeen.has(dedupeKey)) continue;
+    scheduleSeen.add(dedupeKey);
+    if(!ALL_TRAIN_SCHEDULES.has(n)) ALL_TRAIN_SCHEDULES.set(n,[]);
+    ALL_TRAIN_SCHEDULES.get(n).push(normalized);
   }
-  for(const stops of ALL_TRAIN_SCHEDULES.values()) stops.sort((a,b)=>(Number(a.day)||0)-(Number(b.day)||0) || (Number(a.id)||0)-(Number(b.id)||0));
+  for(const stops of ALL_TRAIN_SCHEDULES.values()) stops.sort((a,b)=>(Number(a.day)||0)-(Number(b.day)||0)||(Number(a.id)||0)-(Number(b.id)||0));
   const result={stations:ALL_STATIONS.length,trains:ALL_TRAINS_INDEX.length,scheduleStops:[...ALL_TRAIN_SCHEDULES.values()].reduce((n,a)=>n+a.length,0),cached:false};
   try{ await writeRailDB({stations:ALL_STATIONS,trains:ALL_TRAINS_INDEX,schedules:[...ALL_TRAIN_SCHEDULES.entries()],savedAt:Date.now()}); }
   catch(e){ console.warn("Could not cache railway dataset in IndexedDB:",e); }
@@ -212,6 +250,7 @@ function findRealStation(codeOrName){
 // Returns the real route geometry (array of [lon,lat]) for a train number, if loaded.
 function getTrainRoute(trainNumber){
   const t=ALL_TRAINS_INDEX.find(x=>String(x.number)===String(trainNumber));
+  if(t?.__geoRoute?.length) return t.__geoRoute;
   if(t?.__route?.length){
     const byCode=new Map(ALL_STATIONS.map(s=>[String(s.code).toUpperCase(),s]));
     return t.__route.map(s=>{
