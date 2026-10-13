@@ -550,7 +550,8 @@ function saveTrain(id){
 function deleteTrain(id){if(!requireAdmin())return;if(!confirm("Delete this train?"))return;state.trains=state.trains.filter(t=>t.id!==id);save();render()}
 let autoRailLoadPromise=null;
 async function autoLoadRailDataset(){
- if(railDatasetLoaded()) return true;
+ // Run after every verified sign-in. The loader restores the full dataset from
+ // IndexedDB when available and downloads it again only when no saved copy exists.
  if(autoRailLoadPromise) return autoRailLoadPromise;
  autoRailLoadPromise=(async()=>{
   try{
