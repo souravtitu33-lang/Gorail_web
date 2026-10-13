@@ -49,7 +49,7 @@ function settingsModal(){let gk=getGMapsKey();modal=`<div class="modal-backdrop"
  <div class="actions" style="margin-top:14px"><button class="btn primary" onclick="saveGMapsKey()">Save Key</button>${gk?`<button class="btn danger" onclick="clearGMapsKey()">Remove Key</button>`:""}</div>
  <hr style="margin:20px 0;border:none;border-top:1px solid var(--line)">
  <h3>🚆 All-India train &amp; station database</h3>
- <p class="muted">Loads the complete open Indian-Railway-Data timetable: 5,208+ trains and 8,990+ stations, with ordered route stops, halt times, journey days and running days. The train master is about 96.6 MB, so it is downloaded only when requested and then indexed/cached in this browser.</p>
+ <p class="muted">Merges train routes from multiple public datasets (5,208+ scheduled train records in the primary source, plus additional route records where available) and combines three station directories, including a 13,000+ station list. Route stops, halt times, journey days and running days are indexed and cached in this browser. Initial download can be large; load it when you need the full timetable.</p>
  <div id="railDatasetStatus" class="notice" style="margin-top:10px">${railDatasetLoaded()?`✅ Loaded: ${ALL_TRAINS_INDEX.length.toLocaleString()} trains · ${ALL_STATIONS.length.toLocaleString()} stations`:"Not loaded yet."}</div>
  <button class="btn primary" style="margin-top:10px" onclick="loadFullDataset()">${railDatasetLoaded()?"Reload dataset":"Load all India trains & stations"}</button>
  </div></div>`;drawModal()}
