@@ -268,13 +268,15 @@ function findTrainsForJourney(){
  const match=(q)=>q.toLowerCase();
  const results=all.filter(t=>{
   const stops=ALL_TRAIN_SCHEDULES?.get?.(String(t.number))||[];
-  const idx=stops.findIndex(st=>[st.station_code,st.stationCode,st.code,st.station_name,st.stationName,st.name].some(v=>String(v||"").toLowerCase()===match(qStation(from))));
-  const j=stops.findIndex(st=>[st.station_code,st.stationCode,st.code,st.station_name,st.stationName,st.name].some(v=>String(v||"").toLowerCase()===match(qStation(to))));
+  const idx=stops.findIndex(st=>railStopMatches(st,from));
+  const j=stops.findIndex(st=>railStopMatches(st,to));
   return idx>=0&&j>idx;
  }).slice(0,20);
  box.innerHTML=results.length?'<div class="card"><h3>Trains for your journey</h3>'+results.map(t=>'<button class="btn" style="display:block;width:100%;text-align:left;margin:8px 0" onclick="selectMapTrain(\''+esc(String(t.number))+'\',\''+esc(String(t.name||"")).replace(/'/g,"\\'")+'\')">'+esc(String(t.number))+' · '+esc(String(t.name||"Train"))+' <span class="muted">('+esc(String(t.from||""))+' → '+esc(String(t.to||""))+')</span></button>').join("")+'</div>':'<div class="notice warn">No matching trains found in the loaded timetable. You can still enter a train number below to check its running status.</div>';
 }
 function qStation(v){return String(v||"").trim().toLowerCase();}
+function normalizedStation(v){return qStation(v).replace(/\s*[-–—]\s*[a-z0-9]{1,8}\s*$/i,"").replace(/[^a-z0-9]/g,"");}
+function railStopMatches(st,query){const q=qStation(query),qn=normalizedStation(query);return [st?.station_code,st?.stationCode,st?.code,st?.station_name,st?.stationName,st?.name].some(v=>{const raw=qStation(v);return raw===q||normalizedStation(v)===qn||(qn.length>=4&&normalizedStation(v).includes(qn));});}
 
 function mapSuggest(){
  const q=$("#mapTrainQuery").value.trim();const box=$("#mapAcList");
@@ -291,7 +293,7 @@ async function trackTrainOnMap(){
  if(!q){toast("Enter a train number or name.","warn");return}
  const real=railDatasetLoaded()?(ALL_TRAINS_INDEX.find(t=>String(t.number)===q)||searchAllTrains(q,1)[0]):null;
  const demo=state.trains.find(t=>String(t.number)===q||t.id===q||t.name.toLowerCase().includes(q.toLowerCase()));
- if(!real&&!demo&&!/^\\d{5}$/.test(q)){info.innerHTML='<div class="notice warn">Train not found. Check the number or load the all-India timetable in Settings.</div>';return}
+ if(!real&&!demo&&!/^\d{5}$/.test(q)){info.innerHTML='<div class="notice warn">Train not found. Check the number or load the all-India timetable in Settings.</div>';return}
  const number=String(real?.number||demo?.number||q),name=real?.name||demo?.name||number;
  info.innerHTML='<div class="card">Loading timetable and checking live running status…</div>';
  let live=null,liveError=null;
@@ -306,7 +308,7 @@ async function trackTrainOnMap(){
  let currentIndex=stops.findIndex(s=>currentCode&&String(s.station_code||s.stationCode||s.code||"").toUpperCase()===currentCode);
  if(currentIndex<0&&currentName)currentIndex=stops.findIndex(s=>String(s.station_name||s.stationName||s.name||"").toLowerCase()===currentName.toLowerCase());
  const fromInput=($("#mapFromStation")?.value||"").trim(),toInput=($("#mapToStation")?.value||"").trim();
- const stationMatch=(query)=>{if(!query)return -1;const q=query.toLowerCase();return stops.findIndex(st=>{const code=String(st.station_code||st.stationCode||st.code||"").toLowerCase(),nm=String(st.station_name||st.stationName||st.name||"").toLowerCase();return code===q||nm===q;});};
+ const stationMatch=(query)=>{if(!query)return -1;return stops.findIndex(st=>railStopMatches(st,query));};
  const fromIndex=fromInput?stationMatch(fromInput):0,toIndex=toInput?stationMatch(toInput):stops.length-1;
  if(fromInput&&fromIndex<0){info.innerHTML='<div class="notice warn">Boarding station was not found in this train’s timetable. Enter a station name or code from the route.</div>';return}
  if(toInput&&toIndex<0){info.innerHTML='<div class="notice warn">Destination station was not found in this train’s timetable. Enter a station name or code from the route.</div>';return}
@@ -343,7 +345,7 @@ async function trackTrainOnMap(){
 }
 
 function ticketMini(b){let t=state.trains.find(x=>x.id===b.trainId)||b.train||{};return `<div style="margin-top:12px"><b>${esc(t.number)} · ${esc(t.name)}</b><p class="muted">${esc(t.from)} → ${esc(t.to)}<br>${esc(b.ref||b.pnr)} · saved on this device</p></div>`}
-function goto(p){page=p;searchResults=[];render();window.scrollTo({top:0,behavior:"smooth"});if(p==="stations")setTimeout(loadStationsWeather,10);if(p==="search")setTimeout(bindStationLookup,10)}
+function goto(p){page=p;searchResults=[];render();window.scrollTo({top:0,behavior:"smooth"});if(p==="stations")setTimeout(loadStationsWeather,10);if(p==="search")setTimeout(bindStationLookup,10);if(p==="map"&&!railDatasetLoaded())setTimeout(()=>autoLoadRailDataset(),10)}
 let stationLookupTimer;
 function bindStationLookup(){
  ["sfrom","sto","fareFrom","fareTo","seatFrom","seatTo"].forEach(id=>{
