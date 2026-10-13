@@ -120,7 +120,7 @@ async function loadAllIndiaRailData(onProgress){
         code:p.code||p.station_code||p.stationCode,
         name:p.name||p.station_name||p.stationName,
         state:p.state,zone:p.zone||p.region_code||p.regionCode,address:p.address,
-        lon:c[0]??p.longitude??p.lon,lat:c[1]??p.latitude??p.lat
+        lon:c[0]??p.longitude??p.lon??p.coordinates?.longitude,lat:c[1]??p.latitude??p.lat??p.coordinates?.latitude
       };
       if(!station.code||!station.name)continue;
       const key=String(station.code).trim().toUpperCase();
@@ -212,10 +212,11 @@ async function loadAllIndiaRailData(onProgress){
     }
   }catch(e){ console.warn("Supplementary station schedules unavailable:",e); }
   ALL_TRAIN_SCHEDULES=new Map();
+  const embeddedTrainNumbers=new Set(embeddedSchedules.map(st=>String(st.train_number)));
   const scheduleSeen=new Set();
   for(const stop of (Array.isArray(schedules)?schedules:[])){
     const n=String(stop.train_number||stop.trainNumber||"").trim();
-    if(!n) continue;
+    if(!n||embeddedTrainNumbers.has(n)) continue;
     const normalized={
       day:stop.day||stop.journeyDay,
       station_code:stop.station_code||stop.stationCode||stop.code||"",
@@ -225,7 +226,7 @@ async function loadAllIndiaRailData(onProgress){
       id:stop.id||stop.sequence||stop.sno,
       distance:stop.distance
     };
-    const dedupeKey=[n,normalized.id,normalized.station_code,normalized.station_name,normalized.day,normalized.arrival,normalized.departure].join("|");
+    const dedupeKey=[n,normalized.station_code,normalized.station_name,normalized.day,normalized.arrival,normalized.departure].join("|");
     if(scheduleSeen.has(dedupeKey)) continue;
     scheduleSeen.add(dedupeKey);
     if(!ALL_TRAIN_SCHEDULES.has(n)) ALL_TRAIN_SCHEDULES.set(n,[]);
