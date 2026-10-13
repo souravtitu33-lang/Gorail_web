@@ -154,11 +154,11 @@ async function loadAllIndiaRailData(onProgress){
       const route=t.completeOrderedRoute||t.trainRoute||[];
       const stops=route.map(s=>{
         const rawName=String(s.stationName||s.station_name||s.name||"");
-        const code=String(s.stationCode||s.station_code||s.code||((rawName.match(/\\s-\\s([A-Z0-9]{2,8})$/)||[])[1]||""));
+        const code=String(s.stationCode||s.station_code||s.code||((rawName.match(/\s-\s([A-Z0-9]{2,8})$/)||[])[1]||""));
         return {
           day:s.journeyDay||s.day,
           station_code:code,
-          station_name:rawName.replace(/\\s-\\s[A-Z0-9]{2,8}$/,"")||code,
+          station_name:rawName.replace(/\s-\s[A-Z0-9]{2,8}$/,"")||code,
           arrival:s.arrivalTime||s.arrives||s.arrival||"",
           departure:s.departureTime||s.departs||s.departure||"",
           id:s.sequence||s.sno||s.id,
