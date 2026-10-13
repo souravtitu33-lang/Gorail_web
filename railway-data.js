@@ -22,14 +22,14 @@
 // Fallback: DataMeet railways dataset (CC0) for resilience.
 const RAIL_STATIONS_URLS = [
   "https://raw.githubusercontent.com/prasenjit-27/Indian-Railway-Data/main/stations.json",
-  "https://github.com/datameet/railways/raw/refs/heads/master/stations.json"
+  "https://raw.githubusercontent.com/datameet/railways/master/stations.json"
 ];
 const RAIL_TRAINS_URLS = [
   "https://raw.githubusercontent.com/prasenjit-27/Indian-Railway-Data/main/trains.json",
-  "https://github.com/datameet/railways/raw/refs/heads/master/trains.json"
+  "https://raw.githubusercontent.com/datameet/railways/master/trains.json"
 ];
-const RAIL_SCHEDULES_URL = "https://github.com/datameet/railways/raw/refs/heads/master/schedules.json";
-const RAIL_CACHE_KEY = "gorail_all_india_index_v4";
+const RAIL_SCHEDULES_URL = "https://raw.githubusercontent.com/datameet/railways/master/schedules.json";
+const RAIL_CACHE_KEY = "gorail_all_india_index_v5";
 const RAIL_IDB_NAME = "gorail_railway_data";
 const RAIL_IDB_STORE = "datasets";
 let railLoadPromise = null;
@@ -47,7 +47,7 @@ async function readRailDB(){
   const db=await openRailDB(); if(!db) return null;
   return new Promise((resolve,reject)=>{
     const tx=db.transaction(RAIL_IDB_STORE,"readonly");
-    const req=tx.objectStore(RAIL_IDB_STORE).get("all-india-v1");
+    const req=tx.objectStore(RAIL_IDB_STORE).get("all-india-v2");
     req.onsuccess=()=>{db.close();resolve(req.result||null)};
     req.onerror=()=>{db.close();reject(req.error)};
   });
@@ -56,7 +56,7 @@ async function writeRailDB(value){
   const db=await openRailDB(); if(!db) return false;
   return new Promise((resolve,reject)=>{
     const tx=db.transaction(RAIL_IDB_STORE,"readwrite");
-    tx.objectStore(RAIL_IDB_STORE).put(value,"all-india-v1");
+    tx.objectStore(RAIL_IDB_STORE).put(value,"all-india-v2");
     tx.oncomplete=()=>{db.close();resolve(true)};
     tx.onerror=()=>{db.close();reject(tx.error)};
     tx.onabort=()=>{db.close();reject(tx.error||new Error("IndexedDB write aborted"))};
@@ -102,21 +102,33 @@ async function loadAllIndiaRailData(onProgress){
       return {stations:ALL_STATIONS.length,trains:ALL_TRAINS_INDEX.length,scheduleStops:[...ALL_TRAIN_SCHEDULES.values()].reduce((n,a)=>n+a.length,0),cached:true};
     }
   }catch(e){}
-  onProgress?.("Downloading all Indian railway stations…");
-  let sJson=null, sRes=null, stationSource=0;
+  onProgress?.("Downloading station directories from multiple sources…");
+  const stationPayloads=[];
   for(const url of RAIL_STATIONS_URLS){
-    try{ const r=await fetch(url); if(r.ok){ sJson=await r.json(); sRes=r; break; } }catch(e){}
-    stationSource++;
+    try{
+      const r=await fetch(url);
+      if(r.ok){const payload=await r.json();if(payload)stationPayloads.push(payload);}
+    }catch(e){console.warn("Station dataset source unavailable:",url,e);}
   }
-  if(!sJson) throw new Error("STATIONS_FETCH_FAILED");
-  const stationRows = Array.isArray(sJson) ? sJson : (sJson.features||[]);
-  ALL_STATIONS = stationRows.map(f=>{
-    const p=f.properties||f;
-    const c=f.geometry?.coordinates||p.coordinates||[];
-    return { code:p.code||p.station_code||p.stationCode, name:p.name||p.station_name||p.stationName, state:p.state, zone:p.zone||p.region_code||p.regionCode, address:p.address,
-      lon:c[0] ?? p.longitude ?? p.lon, lat:c[1] ?? p.latitude ?? p.lat };
-  }).filter(s=>s.code && s.name);
-
+  if(!stationPayloads.length) throw new Error("STATIONS_FETCH_FAILED");
+  const stationByCode=new Map();
+  for(const sJson of stationPayloads){
+    const stationRows=Array.isArray(sJson)?sJson:(sJson.features||[]);
+    for(const f of stationRows){
+      const p=f.properties||f,c=f.geometry?.coordinates||p.coordinates||[];
+      const station={
+        code:p.code||p.station_code||p.stationCode,
+        name:p.name||p.station_name||p.stationName,
+        state:p.state,zone:p.zone||p.region_code||p.regionCode,address:p.address,
+        lon:c[0]??p.longitude??p.lon,lat:c[1]??p.latitude??p.lat
+      };
+      if(!station.code||!station.name)continue;
+      const key=String(station.code).trim().toUpperCase();
+      const previous=stationByCode.get(key);
+      if(!previous||(previous.lat==null&&station.lat!=null))stationByCode.set(key,station);
+    }
+  }
+  ALL_STATIONS=[...stationByCode.values()];
   onProgress?.("Downloading train master datasets from multiple sources…");
   const trainPayloads=[];
   for(const url of RAIL_TRAINS_URLS){
