@@ -198,9 +198,9 @@ function bookingsPage(){
  + (bs.length?bs.map(b=>bookingCard(b)).join(""):`<div class="card empty">No saved enquiries yet.</div>`);
 }
 function bookingCard(b){let t=state.trains.find(x=>x.id===b.trainId)||b.train||{};return `<div class="ticket" style="margin-bottom:15px"><div class="ticket-head"><div><b>${esc(t.number)} · ${esc(t.name)}</b><div class="muted">${esc(t.from)} → ${esc(t.to)}</div></div>${sourceBadge("device")}</div><div class="ticket-body"><div class="ticket-grid"><div><div class="label">Enquiry ref</div><div class="value">${esc(b.ref||b.pnr)}</div></div><div><div class="label">Passenger</div><div class="value">${esc(b.passenger.name)}</div></div><div><div class="label">Class</div><div class="value">${esc(b.className)}</div></div><div><div class="label">Quoted fare</div><div class="value">₹${esc(b.fare)}</div></div></div><p class="muted">Saved on this device. Not an IRCTC reservation and not a payable ticket.</p><div class="actions" style="margin-top:16px"><button class="btn small" onclick="ticketDetail('${b.id}')">View enquiry</button>${b.status!=="Removed"?`<button class="btn danger small" onclick="cancelBooking('${b.id}')">Remove</button>`:""}</div></div></div>`}
-function pnrPage(){return pageTitle("PNR Status","Live Indian Railways PNR lookup",liveBadge())
- +`<div class="card"><div class="field"><label>PNR Number</label><input id="pnrInput" placeholder="Enter 10 digit PNR"></div><button class="btn primary" style="margin-top:12px" onclick="checkPnr()">Check PNR</button><div id="pnrOut" style="margin-top:18px"></div>
- <p class="muted" style="margin-top:10px">This page asks RailRadar for a real 10-digit PNR. GoRail enquiry references are not PNRs.</p></div>`}
+function pnrPage(){return pageTitle("PNR Status","Check your reservation with GoRail or the official Indian Railways enquiry",liveBadge())
+ +`<div class="card"><div class="field"><label>PNR Number</label><input id="pnrInput" inputmode="numeric" maxlength="10" placeholder="Enter 10 digit PNR"></div><button class="btn primary" style="margin-top:12px" onclick="checkPnr()">Check PNR</button> <a class="btn" style="display:inline-flex;margin-top:12px;text-decoration:none" href="https://indianrail.gov.in/enquiry/PNR/PnrEnquiry.html?locale=en" target="_blank" rel="noopener noreferrer">Open official PNR enquiry ↗</a><div id="pnrOut" style="margin-top:18px"></div>
+ <p class="muted" style="margin-top:10px">Live results inside GoRail use the configured data provider. For an official check, open Indian Railways PNR Enquiry. GoRail does not ask for your IRCTC password.</p></div>`}
 function livePage(){return pageTitle("Live Status","Current operational status of your selected train",liveBadge())
  +`<div class="card"><div class="field"><label>Train</label><select id="liveTrain">${state.trains.map(t=>`<option value="${t.id}">${t.number} · ${esc(t.name)}</option>`).join("")}</select></div>
  ${hasLiveData()?`<div class="field" style="margin-top:12px"><label>Or enter any real train number</label><input id="liveTrainNo" placeholder="e.g. 12951"></div>`:""}
@@ -494,7 +494,7 @@ async function checkPnr(){
    <p><b>Journey date:</b> ${esc(d?.journeyDate||d?.dateOfJourney||d?.doj||"—")}</p>
    <p><b>Chart status:</b> ${esc(d?.chartStatus||d?.chartingStatus||"—")}</p>
    ${rows?`<table class="table"><thead><tr><th>Passenger</th><th>Current status</th><th>Coach</th><th>Berth</th></tr></thead><tbody>${rows}</tbody></table>`:`<pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;margin-top:10px">${esc(JSON.stringify(d,null,2)).slice(0,1800)}</pre>`}</div>`;
- }catch(e){out.innerHTML=`<div class="notice warn">RailRadar PNR lookup failed: ${esc(e.message||e)}. Check the PNR, API key, and quota.</div>`}
+ }catch(e){out.innerHTML=`<div class="notice warn">Live PNR lookup through the configured provider failed: ${esc(e.message||e)}. You can check the same 10-digit PNR on the <a href="https://indianrail.gov.in/enquiry/PNR/PnrEnquiry.html?locale=en" target="_blank" rel="noopener noreferrer">official Indian Railways PNR enquiry page ↗</a>. GoRail does not ask for your IRCTC password.</div>`}
 }
 
 async function showLive(){
