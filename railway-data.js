@@ -72,6 +72,26 @@ let ALL_TRAIN_SCHEDULES = new Map(); // train number -> ordered station stops
 function railDatasetLoaded(){ return ALL_TRAINS_INDEX.length > 0 && ALL_TRAIN_SCHEDULES.size > 0; }
 function railStationsLoaded(){ return ALL_STATIONS.length > 0; }
 
+const GORAIL_BHUBANESWAR_STATION={
+  code:"BBS",name:"Bhubaneswar",state:"Odisha",
+  zone:"East Coast Railway (ECoR)",address:"Bhubaneswar Railway Station, Bhubaneswar, Odisha, India",
+  lat:20.2674,lon:85.8430,aliases:["BHUBANESWAR","BHUBANESWAR JUNCTION","BBS"]
+};
+function ensureBhubaneswarStation(){
+  if(!Array.isArray(ALL_STATIONS)) ALL_STATIONS=[];
+  const idx=ALL_STATIONS.findIndex(s=>String(s.code||"").toUpperCase()==="BBS"||/\\bbhubaneswar\\b/i.test(String(s.name||"")));
+  if(idx>=0){
+    const old=ALL_STATIONS[idx];
+    ALL_STATIONS[idx]={...GORAIL_BHUBANESWAR_STATION,...old,
+      code:old.code||"BBS",name:old.name||"Bhubaneswar",
+      state:old.state||"Odisha",zone:old.zone||GORAIL_BHUBANESWAR_STATION.zone,
+      lat:old.lat??GORAIL_BHUBANESWAR_STATION.lat,lon:old.lon??GORAIL_BHUBANESWAR_STATION.lon,
+      aliases:[...new Set([...(old.aliases||[]),...GORAIL_BHUBANESWAR_STATION.aliases])]};
+  }else ALL_STATIONS.push({...GORAIL_BHUBANESWAR_STATION});
+  return ALL_STATIONS.find(s=>String(s.code||"").toUpperCase()==="BBS")||GORAIL_BHUBANESWAR_STATION;
+}
+
+
 let bundledRouteDataPromise=null;
 async function loadBundledTrainRouteData(){
   if(bundledRouteDataPromise) return bundledRouteDataPromise;
@@ -167,7 +187,7 @@ async function loadAllIndiaRailData(onProgress){
   try{
     const cached=await readRailDB().catch(()=>null);
     if(cached?.stations?.length && cached?.trains?.length && Array.isArray(cached?.schedules)){
-      ALL_STATIONS=cached.stations; ALL_TRAINS_INDEX=cached.trains; ALL_TRAINS_GEOJSON=null;
+      ALL_STATIONS=cached.stations; ensureBhubaneswarStation(); ALL_TRAINS_INDEX=cached.trains; ALL_TRAINS_GEOJSON=null;
       ALL_TRAIN_SCHEDULES=new Map(cached.schedules);
       const bundledAdded=await loadBundledTrainRouteData();
       const directoryAdded=await mergeRailRadarTrainDirectory();
@@ -206,6 +226,7 @@ async function loadAllIndiaRailData(onProgress){
     }
   }
   ALL_STATIONS=[...stationByCode.values()];
+  ensureBhubaneswarStation();
   onProgress?.("Downloading train master datasets from multiple sources…");
   const trainPayloads=[];
   for(const url of RAIL_TRAINS_URLS){
@@ -334,9 +355,11 @@ function searchAllTrains(query, limit=25){
 function findRealStation(codeOrName){
   if(!codeOrName) return null;
   const q = codeOrName.trim().toLowerCase();
-  return ALL_STATIONS.find(s=>s.code.toLowerCase()===q) ||
-         ALL_STATIONS.find(s=>s.name.toLowerCase()===q) ||
-         ALL_STATIONS.find(s=>s.name.toLowerCase().includes(q)) || null;
+  ensureBhubaneswarStation();
+  if(["bbs","bhubaneswar","bhubaneswar junction"].includes(q)) return ALL_STATIONS.find(s=>String(s.code).toUpperCase()==="BBS")||GORAIL_BHUBANESWAR_STATION;
+  return ALL_STATIONS.find(s=>String(s.code||"").toLowerCase()===q) ||
+         ALL_STATIONS.find(s=>String(s.name||"").toLowerCase()===q) ||
+         ALL_STATIONS.find(s=>String(s.name||"").toLowerCase().includes(q)) || null;
 }
 
 // Returns the real route geometry (array of [lon,lat]) for a train number, if loaded.
