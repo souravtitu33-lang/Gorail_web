@@ -4,18 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>GoRail — Railway Operations & Management</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20261015-1">
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script>
     // Apply saved theme before paint to avoid a flash of the wrong theme.
-    document.documentElement.setAttribute("data-theme", localStorage.getItem("gorail_theme") || "light");
+    try { document.documentElement.setAttribute("data-theme", localStorage.getItem("gorail_theme") || "light"); } catch (_) { document.documentElement.setAttribute("data-theme", "light"); }
   </script>
 </head>
 <body>
-<div id="app"></div>
-<script src="api.js?v=20260928-3"></script>
-<script src="railway-data.js"></script>
-<script src="map.js"></script>
+<div id="app"><div style="max-width:520px;margin:12vh auto;padding:24px;font:16px system-ui;color:#18212b"><h1>🚆 GoRail</h1><p>Loading the railway portal…</p><p>If this message stays here, a script failed to load.</p></div></div>
+<div id="bootError" style="display:none;max-width:650px;margin:30px auto;padding:20px;font:15px system-ui;color:#8b1e1e;background:#fff0f0;border:1px solid #efb8b8;border-radius:12px"></div>
+<script>window.addEventListener("error",function(e){var b=document.getElementById("bootError");if(b){b.style.display="block";b.innerHTML="<h2>GoRail could not start</h2><p>"+String(e.message||"A required script failed to load").replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]})+"</p><p>Refresh the page. If it continues, share this message with support.</p>";}});window.addEventListener("unhandledrejection",function(e){var b=document.getElementById("bootError");if(b){b.style.display="block";b.textContent="GoRail startup error: "+String(e.reason&&e.reason.message||e.reason||"Unknown error");}});</script>
+<script src="api.js?v=20261015-1"></script>
+<script src="railway-data.js?v=20261015-1"></script>
+<script src="map.js?v=20261015-1"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script>
@@ -31,6 +33,6 @@
   firebase.initializeApp(firebaseConfig);
   const goRailAuth = firebase.auth();
 </script>
-<script src="app.js?v=20260928-4"></script>
+<script src="app.js?v=20261015-1"></script>
 </body>
 </html>
