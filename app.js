@@ -260,19 +260,52 @@ function mapPage(){
  '<style>.gr-search-card{background:var(--card);padding:16px}.gr-station-field{display:grid;grid-template-columns:24px minmax(0,1fr) 28px;gap:10px;align-items:center}.gr-station-marker{color:#9bc7ff;font-size:19px;text-align:center}.gr-station-field .field{margin:0}.gr-clear{border:0;background:transparent;color:var(--muted);font-size:25px;cursor:pointer}.gr-station-connector{margin-left:7px;padding:0 0 0 0;height:30px;line-height:13px;color:var(--muted);font-size:16px}.gr-search-actions{display:flex;gap:8px;margin-top:14px}.gr-search-actions .btn:first-child{flex:1}.gr-train-search{display:grid;grid-template-columns:44px minmax(0,1fr) 52px;gap:12px;align-items:center;margin-top:14px}.gr-train-icon{font-size:28px}.gr-train-search .field{margin:0}.gr-icon-button{height:48px;font-size:25px;padding:0}@media(max-width:480px){.gr-train-search{grid-template-columns:34px minmax(0,1fr) 46px;gap:8px}}</style>';
 }
 function swapJourneyStations(){const a=$("#mapFromStation"),b=$("#mapToStation");if(!a||!b)return;const v=a.value;a.value=b.value;b.value=v;}
-function findTrainsForJourney(){
+async function findTrainsForJourney(){
  const from=($("#mapFromStation")?.value||"").trim(),to=($("#mapToStation")?.value||"").trim(),box=$("#mapJourneyMatches");
  if(!from||!to){toast("Enter both boarding and destination stations.","warn");return}
  if(from.toLowerCase()===to.toLowerCase()){toast("Choose two different stations.","warn");return}
  const all=railDatasetLoaded()?ALL_TRAINS_INDEX:[];
- const match=(q)=>q.toLowerCase();
- const results=all.filter(t=>{
+ let results=all.filter(t=>{
   const stops=ALL_TRAIN_SCHEDULES?.get?.(String(t.number))||[];
   const idx=stops.findIndex(st=>railStopMatches(st,from));
   const j=stops.findIndex(st=>railStopMatches(st,to));
   return idx>=0&&j>idx;
  }).slice(0,20);
- box.innerHTML=results.length?'<div class="card"><h3>Trains for your journey</h3>'+results.map(t=>'<button class="btn" style="display:block;width:100%;text-align:left;margin:8px 0" onclick="selectMapTrain(\''+esc(String(t.number))+'\',\''+esc(String(t.name||"")).replace(/'/g,"\\'")+'\')">'+esc(String(t.number))+' · '+esc(String(t.name||"Train"))+' <span class="muted">('+esc(String(t.from||""))+' → '+esc(String(t.to||""))+')</span></button>').join("")+'</div>':'<div class="notice warn">No matching trains found in the loaded timetable. You can still enter a train number below to check its running status.</div>';
+ // If the local snapshot has no matching route, ask RailRadar's current between-stations timetable.
+ if(!results.length&&typeof GoRailAPI!=="undefined"&&typeof GoRailAPI.trainsBetween==="function"){
+  box.innerHTML='<div class="card">No local timetable match. Checking the current RailRadar train directory…</div>';
+  try{
+   const resolveCode=async query=>{
+    const local=typeof findRealStation==="function"?findRealStation(query):null;
+    if(local?.code)return String(local.code).toUpperCase();
+    if(/^[A-Za-z0-9]{2,10}$/.test(query))return query.toUpperCase();
+    const response=await GoRailAPI.searchStation(query);
+    const data=response?.data??response?.result?.data??response?.result??[];
+    const stations=Array.isArray(data)?data:(data?.stations||[]);
+    const exact=stations.find(st=>String(st.name||"").toLowerCase()===query.toLowerCase());
+    return String((exact||stations[0])?.code||"").toUpperCase();
+   };
+   const [fromCode,toCode]=await Promise.all([resolveCode(from),resolveCode(to)]);
+   if(fromCode&&toCode&&fromCode!==toCode){
+    const response=await GoRailAPI.trainsBetween({fromStationCode:fromCode,toStationCode:toCode});
+    const data=response?.data??response?.result?.data??response?.result??response;
+    const remote=data?.trains||data?.results||[];
+    for(const item of remote){
+     const t=item.train||item;
+     const number=String(t.number||t.trainNumber||t.train_number||"").trim();
+     const name=String(t.name||t.trainName||t.train_name||"").trim();
+     if(!number||!name)continue;
+     let existing=ALL_TRAINS_INDEX.find(x=>String(x.number)===number);
+     if(!existing){
+      existing={number,name,type:t.type||"",from:fromCode,from_name:data?.from?.name||from,to:toCode,to_name:data?.to?.name||to,classes:[],runningDays:t.runDays||t.runningDays||{},__route:[],__directoryOnly:true};
+      ALL_TRAINS_INDEX.push(existing);
+     }
+     if(!results.some(x=>String(x.number)===number))results.push(existing);
+    }
+   }
+  }catch(e){console.warn("RailRadar between-stations fallback unavailable:",e)}
+ }
+ box.innerHTML=results.length?'<div class="card"><h3>Trains for your journey</h3>'+results.slice(0,20).map(t=>'<button class="btn" style="display:block;width:100%;text-align:left;margin:8px 0" onclick="selectMapTrain(\''+esc(String(t.number))+'\',\''+esc(String(t.name||"")).replace(/'/g,"\\'")+'\')">'+esc(String(t.number))+' · '+esc(String(t.name||"Train"))+' <span class="muted">('+esc(String(t.from_name||t.from||from))+' → '+esc(String(t.to_name||t.to||to))+')</span></button>').join("")+'</div>':'<div class="notice warn">No matching trains were found in the loaded timetable or RailRadar response. You can still enter a train number to check its running status.</div>';
 }
 function qStation(v){return String(v||"").trim().toLowerCase();}
 function normalizedStation(v){return qStation(v).replace(/\s*[-–—]\s*[a-z0-9]{1,8}\s*$/i,"").replace(/[^a-z0-9]/g,"");}
@@ -308,8 +341,8 @@ async function trackTrainOnMap(){
    const routeRows=Array.isArray(routeData)?routeData:(routeData?.route||routeData?.stops||routeData?.stations||routeData?.data?.route||routeData?.data?.stops||[]);
    if(Array.isArray(routeRows))stops=routeRows.map(st=>{
     const rawName=String(st.stationName||st.station_name||st.name||"");
-    const parsedCode=(rawName.match(/\\s[-–]\\s([A-Z0-9]{2,8})$/)||[])[1]||"";
-    return {station_code:st.stationCode||st.station_code||st.code||parsedCode,station_name:rawName.replace(/\\s[-–]\\s[A-Z0-9]{2,8}$/,"")||st.stationCode||st.station_code||st.code||"",arrival:st.scheduledArrival||st.arrivalTime||st.arrival||st.arrives||"",departure:st.scheduledDeparture||st.departureTime||st.departure||st.departs||"",day:st.journeyDay||st.day||"",distance:st.distance??st.distanceFromSource??"",platformNumber:st.platformNumber??st.platform_number??st.platformNo??st.platform_no??st.platform??st.pf_no};
+    const parsedCode=(rawName.match(/\s[-–]\s([A-Z0-9]{2,8})$/)||[])[1]||"";
+    return {station_code:st.stationCode||st.station_code||st.code||parsedCode,station_name:rawName.replace(/\s[-–]\s[A-Z0-9]{2,8}$/,"")||st.stationCode||st.station_code||st.code||"",arrival:st.scheduledArrival||st.arrivalTime||st.arrival||st.arrives||"",departure:st.scheduledDeparture||st.departureTime||st.departure||st.departs||"",day:st.journeyDay||st.day||"",distance:st.distance??st.distanceFromSource??"",platformNumber:st.platformNumber??st.platform_number??st.platformNo??st.platform_no??st.platform??st.pf_no};
    });
   }catch(routeError){console.warn("On-demand train route unavailable:",routeError)}
  }
