@@ -89,7 +89,7 @@ function parseRailRadarTrainDirectory(payload){
   let data=payload?.data??payload?.result?.data??payload?.result??payload;
   const rows=[];
   if(typeof data==="string"){
-    for(const line of data.split(/\\r?\\n/)){
+    for(const line of data.split(/\r?\n/)){
       const parts=line.trim().split("|");
       if(parts.length>=2&&parts[0].trim()) rows.push({number:parts[0].trim(),name:parts[1].trim(),from:parts[2]?.trim()||"",to:parts[3]?.trim()||""});
     }
@@ -104,7 +104,7 @@ function parseRailRadarTrainDirectory(payload){
       else rows.push({number:String(number),name:String(value||"").trim(),from:"",to:""});
     }
   }
-  return rows.filter(t=>/^\\d{4,6}$/.test(t.number)&&t.name);
+  return rows.filter(t=>/^\d{4,6}$/.test(t.number)&&t.name);
 }
 async function mergeRailRadarTrainDirectory(){
   let rows=[];
