@@ -300,7 +300,19 @@ async function trackTrainOnMap(){
  try{const response=await GoRailAPI.liveStatus(number,"1",date||undefined);live=response?.data||response?.result||response;}
  catch(e){liveError=e}
  let stops=(ALL_TRAIN_SCHEDULES?.get?.(number)||[]).slice();
- if(!stops.length&&Array.isArray(live?.route))stops=live.route.map((s,i)=>({station_code:s.stationCode||s.station_code||s.code||"",station_name:s.stationName||s.station_name||s.name||"",arrival:s.scheduledArrival||s.arrival||"",departure:s.scheduledDeparture||s.departure||"",day:s.day||"",distance:s.distance??s.distanceFromSource??""}));
+ if(!stops.length&&Array.isArray(live?.route))stops=live.route.map((s,i)=>({station_code:s.stationCode||s.station_code||s.code||"",station_name:s.stationName||s.station_name||s.name||"",arrival:s.scheduledArrival||s.arrival||"",departure:s.scheduledDeparture||s.departure||"",day:s.day||s.journeyDay||"",distance:s.distance??s.distanceFromSource??"",platformNumber:s.platformNumber??s.platform_number??s.platformNo??s.platform_no??s.platform}));
+ if(!stops.length&&typeof GoRailAPI!=="undefined"&&typeof GoRailAPI.trainRoute==="function"){
+  try{
+   const routeResponse=await GoRailAPI.trainRoute(number);
+   const routeData=routeResponse?.data??routeResponse?.result?.data??routeResponse?.result??routeResponse;
+   const routeRows=Array.isArray(routeData)?routeData:(routeData?.route||routeData?.stops||routeData?.stations||routeData?.data?.route||routeData?.data?.stops||[]);
+   if(Array.isArray(routeRows))stops=routeRows.map(st=>{
+    const rawName=String(st.stationName||st.station_name||st.name||"");
+    const parsedCode=(rawName.match(/\\s[-–]\\s([A-Z0-9]{2,8})$/)||[])[1]||"";
+    return {station_code:st.stationCode||st.station_code||st.code||parsedCode,station_name:rawName.replace(/\\s[-–]\\s[A-Z0-9]{2,8}$/,"")||st.stationCode||st.station_code||st.code||"",arrival:st.scheduledArrival||st.arrivalTime||st.arrival||st.arrives||"",departure:st.scheduledDeparture||st.departureTime||st.departure||st.departs||"",day:st.journeyDay||st.day||"",distance:st.distance??st.distanceFromSource??"",platformNumber:st.platformNumber??st.platform_number??st.platformNo??st.platform_no??st.platform??st.pf_no};
+   });
+  }catch(routeError){console.warn("On-demand train route unavailable:",routeError)}
+ }
  if(!stops.length&&demo)stops=[{station_code:"",station_name:demo.from,arrival:"",departure:demo.dep||"",day:""},{station_code:"",station_name:demo.to,arrival:demo.arr||"",departure:"",day:""}];
  const pos=live?.currentLocation||live?.current_position||live?.currentPosition||{};
  const currentCode=String(pos.stationCode||pos.station_code||live?.current_station_code||live?.current_station||"").toUpperCase();
