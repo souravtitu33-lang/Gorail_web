@@ -65,6 +65,10 @@ export default async function handler(req, res) {
     const query = new URLSearchParams();
     if (req.query?.date) query.set("date", String(req.query.date));
     path = `/v1/trains/between/${encodeURIComponent(from)}/${encodeURIComponent(to)}${query.size ? "?" + query.toString() : ""}`;
+  } else if (action === "all-trains") {
+    // One cached-by-client directory request; this adds active NTES-tracked trains
+    // that may be missing from the static community timetable snapshots.
+    path = "/v1/lookup/trains/compressed";
   } else if (action === "station-search") {
     const query = String(req.query?.query || "").trim();
     if (!query || query.length > 80) return res.status(400).json({ error: "Enter a station search term (up to 80 characters)." });
