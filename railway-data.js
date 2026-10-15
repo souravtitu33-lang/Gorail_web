@@ -30,7 +30,7 @@ const RAIL_TRAINS_URLS = [
   "https://raw.githubusercontent.com/datameet/railways/master/trains.json"
 ];
 const RAIL_SCHEDULES_URL = "https://raw.githubusercontent.com/datameet/railways/master/schedules.json";
-const RAIL_CACHE_KEY = "gorail_all_india_index_v6";
+const RAIL_CACHE_KEY = "gorail_all_india_index_v7";
 const RAIL_IDB_NAME = "gorail_railway_data";
 const RAIL_IDB_STORE = "datasets";
 let railLoadPromise = null;
@@ -48,7 +48,7 @@ async function readRailDB(){
   const db=await openRailDB(); if(!db) return null;
   return new Promise((resolve,reject)=>{
     const tx=db.transaction(RAIL_IDB_STORE,"readonly");
-    const req=tx.objectStore(RAIL_IDB_STORE).get("all-india-v3");
+    const req=tx.objectStore(RAIL_IDB_STORE).get("all-india-v4");
     req.onsuccess=()=>{db.close();resolve(req.result||null)};
     req.onerror=()=>{db.close();reject(req.error)};
   });
@@ -57,7 +57,7 @@ async function writeRailDB(value){
   const db=await openRailDB(); if(!db) return false;
   return new Promise((resolve,reject)=>{
     const tx=db.transaction(RAIL_IDB_STORE,"readwrite");
-    tx.objectStore(RAIL_IDB_STORE).put(value,"all-india-v3");
+    tx.objectStore(RAIL_IDB_STORE).put(value,"all-india-v4");
     tx.oncomplete=()=>{db.close();resolve(true)};
     tx.onerror=()=>{db.close();reject(tx.error)};
     tx.onabort=()=>{db.close();reject(tx.error||new Error("IndexedDB write aborted"))};
@@ -83,6 +83,60 @@ function loadCachedIndex(){
   }catch(e){ return false; }
 }
 
+// Merge the current RailRadar train directory as a lightweight supplement to static route datasets.
+ // It includes active NTES-tracked trains that may be absent from older community snapshots.
+function parseRailRadarTrainDirectory(payload){
+  let data=payload?.data??payload?.result?.data??payload?.result??payload;
+  const rows=[];
+  if(typeof data==="string"){
+    for(const line of data.split(/\\r?\\n/)){
+      const parts=line.trim().split("|");
+      if(parts.length>=2&&parts[0].trim()) rows.push({number:parts[0].trim(),name:parts[1].trim(),from:parts[2]?.trim()||"",to:parts[3]?.trim()||""});
+    }
+  }else if(Array.isArray(data)){
+    for(const row of data){
+      if(Array.isArray(row)) rows.push({number:String(row[0]||"").trim(),name:String(row[1]||"").trim(),from:String(row[2]||"").trim(),to:String(row[3]||"").trim()});
+      else if(row&&typeof row==="object") rows.push({number:String(row.train_number||row.trainNumber||row.number||"").trim(),name:String(row.train_name||row.trainName||row.name||"").trim(),from:String(row.from_station_code||row.from||"").trim(),to:String(row.to_station_code||row.to||"").trim()});
+    }
+  }else if(data&&typeof data==="object"){
+    for(const [number,value] of Object.entries(data)){
+      if(value&&typeof value==="object") rows.push({number:String(number),name:String(value.name||value.train_name||value.trainName||"").trim(),from:String(value.from||value.source||value.sourceCode||"").trim(),to:String(value.to||value.destination||value.destinationCode||"").trim()});
+      else rows.push({number:String(number),name:String(value||"").trim(),from:"",to:""});
+    }
+  }
+  return rows.filter(t=>/^\\d{4,6}$/.test(t.number)&&t.name);
+}
+async function mergeRailRadarTrainDirectory(){
+  let rows=[];
+  try{
+    const cacheKey="gorail_railradar_train_directory_v1";
+    let cached=null;
+    try{cached=JSON.parse(localStorage.getItem(cacheKey)||"null")}catch(e){}
+    if(cached?.savedAt&&Date.now()-cached.savedAt<24*60*60*1000&&Array.isArray(cached.rows)) rows=cached.rows;
+    else if(typeof GoRailAPI!=="undefined"&&typeof GoRailAPI.allTrains==="function"){
+      const response=await GoRailAPI.allTrains();
+      rows=parseRailRadarTrainDirectory(response);
+      if(rows.length) try{localStorage.setItem(cacheKey,JSON.stringify({savedAt:Date.now(),rows}))}catch(e){}
+    }
+  }catch(e){console.warn("RailRadar train directory unavailable; using static datasets.",e)}
+  if(!rows.length) return 0;
+  const byNumber=new Map(ALL_TRAINS_INDEX.map(t=>[String(t.number),t]));
+  let added=0;
+  for(const row of rows){
+    const old=byNumber.get(row.number);
+    if(old){
+      if(!old.from&&row.from) old.from=row.from;
+      if(!old.to&&row.to) old.to=row.to;
+      if(!old.name&&row.name) old.name=row.name;
+      continue;
+    }
+    byNumber.set(row.number,{number:row.number,name:row.name,type:"",from:row.from,from_name:row.from,to:row.to,to_name:row.to,zone:"",distance:0,duration_h:0,duration_m:0,departure:"",arrival:"",classes:[],runningDays:{},__route:[],__directoryOnly:true});
+    added++;
+  }
+  ALL_TRAINS_INDEX=[...byNumber.values()];
+  return added;
+}
+
 function classListFromProps(p){
   const out=[];
   if(p.first_ac) out.push("1A"); if(p.second_ac) out.push("2A"); if(p.third_ac) out.push("3A");
@@ -99,8 +153,13 @@ async function loadAllIndiaRailData(onProgress){
     if(cached?.stations?.length && cached?.trains?.length && Array.isArray(cached?.schedules)){
       ALL_STATIONS=cached.stations; ALL_TRAINS_INDEX=cached.trains; ALL_TRAINS_GEOJSON=null;
       ALL_TRAIN_SCHEDULES=new Map(cached.schedules);
-      onProgress?.("Loaded the saved all-India timetable.");
-      return {stations:ALL_STATIONS.length,trains:ALL_TRAINS_INDEX.length,scheduleStops:[...ALL_TRAIN_SCHEDULES.values()].reduce((n,a)=>n+a.length,0),cached:true};
+      const directoryAdded=await mergeRailRadarTrainDirectory();
+      if(directoryAdded){
+        try{await writeRailDB({stations:ALL_STATIONS,trains:ALL_TRAINS_INDEX,schedules:[...ALL_TRAIN_SCHEDULES.entries()],savedAt:Date.now()})}catch(e){}
+        try{localStorage.setItem(RAIL_CACHE_KEY,JSON.stringify({stations:ALL_STATIONS,trains:ALL_TRAINS_INDEX}))}catch(e){}
+      }
+      onProgress?.(directoryAdded?("Loaded saved timetable plus "+directoryAdded+" extra RailRadar train records."):"Loaded the saved all-India timetable.");
+      return {stations:ALL_STATIONS.length,trains:ALL_TRAINS_INDEX.length,scheduleStops:[...ALL_TRAIN_SCHEDULES.values()].reduce((n,a)=>n+a.length,0),cached:true,extraDirectoryTrains:directoryAdded};
     }
   }catch(e){}
   onProgress?.("Downloading station directories from multiple sources…");
@@ -202,6 +261,8 @@ async function loadAllIndiaRailData(onProgress){
   }
   ALL_TRAINS_INDEX=[...trainByNumber.values()];
   ALL_TRAINS_GEOJSON=geoFallback;
+  onProgress?.("Adding the current RailRadar train directory…");
+  const directoryAdded=await mergeRailRadarTrainDirectory();
 
   onProgress?.("Loading station-by-station timetables…");
   let schedules=embeddedSchedules;
@@ -234,7 +295,7 @@ async function loadAllIndiaRailData(onProgress){
     ALL_TRAIN_SCHEDULES.get(n).push(normalized);
   }
   for(const stops of ALL_TRAIN_SCHEDULES.values()) stops.sort((a,b)=>(Number(a.day)||0)-(Number(b.day)||0)||(Number(a.id)||0)-(Number(b.id)||0));
-  const result={stations:ALL_STATIONS.length,trains:ALL_TRAINS_INDEX.length,scheduleStops:[...ALL_TRAIN_SCHEDULES.values()].reduce((n,a)=>n+a.length,0),cached:false};
+  const result={stations:ALL_STATIONS.length,trains:ALL_TRAINS_INDEX.length,scheduleStops:[...ALL_TRAIN_SCHEDULES.values()].reduce((n,a)=>n+a.length,0),cached:false,extraDirectoryTrains:directoryAdded};
   try{ await writeRailDB({stations:ALL_STATIONS,trains:ALL_TRAINS_INDEX,schedules:[...ALL_TRAIN_SCHEDULES.entries()],savedAt:Date.now()}); }
   catch(e){ console.warn("Could not cache railway dataset in IndexedDB:",e); }
   try{ localStorage.setItem(RAIL_CACHE_KEY, JSON.stringify({stations: ALL_STATIONS, trains: ALL_TRAINS_INDEX})); }catch(e){}
