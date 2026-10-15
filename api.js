@@ -74,6 +74,9 @@ const GoRailAPI = {
   },
   searchStation(query) {
     return railRadarGet({ action: "station-search", query });
+  },
+  allTrains() {
+    return railRadarGet({ action: "all-trains" });
   }
 };
 
